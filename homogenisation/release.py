@@ -10,7 +10,8 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 import logging
 
 # Module-specific
-from wg import WorkingGroupResults
+from . import rules
+from .wg import WorkingGroupResults
 
 # Create a logger.
 logger = logging.getLogger(__name__)
@@ -49,12 +50,66 @@ class DataRelease(object):
                 for filename in filenames]
 
         # Keep an attribute for accessing which WG they are.
-        self._wg_names = [_.wg for _ in self._wg_results]
+        self._wg_names = [_.wg.upper() for _ in self._wg_results]
         return True
+
+
+    def _wg(self, wg):
+        """
+        A convenience function to access the results from a given working group.
+        """
+        return self._wg_results[self._wg_names.index(wg)]
+
     
-    
-    def update_results(self, rule):
-        raise NotImplementedError
+    def modify_results(self, rule):
+        """
+        Apply a modification rule (e.g., update columns or delete rows) to some
+        or all of the working group results.
+
+        :param rule:
+            The rule to apply to the working group results associated with this
+            data release.
+
+        :type rule:
+            :class:`homogenisation.rule.ModificationRule`
+        """
+
+        if not isinstance(rule, rules.ModificationRule):
+            raise TypeError("results can only be modified with well specified "
+                "constraints, which must be in the form of a homogenisation.rul"
+                "es.ModificationRule object")
+
+        logger.debug("Modifying results in {0} with rule {1}".format(self, rule))
+
+        # See which working groups we need to work on.
+        applies_to_wg_names = set(self._wg_names).intersection(rule.apply_to)
+        logger.debug("Intersection of WG names ({0}) and rule scope ({1}) is: "
+            "{2}".format(self._wg_names, rule.apply_to, 
+                ", ".join(applies_to_wg_names)))
+
+        if len(applies_to) == 0:
+            raise ValueError("found no working group results in ({0}) matching "
+                "the requested scope of the rule ({1})".format(self._wg_names,
+                    rule.apply_to))
+
+        for wg_name in applies_to_wg_names:
+
+            if isinstance(rule, rules.DeleteRowsRule):
+                self._wg(wg_name).delete_rows(rule.filter_rows)
+
+            elif isinstance(rule, rules.UpdateColumnsRule):
+
+                # Create the additional information we may need from other WGs
+                raise NotImplementedError
+                self._wg(wg_name).update_columns(rule)
+
+            else:
+                raise NotImplementedError("don't know what to do with this kind"
+                    " of rule: {}".format(rule))
+
+        # Return the number of rows affected for each WG?
+        assert False
+        
 
 
     def update_repeated_results(self, rule):

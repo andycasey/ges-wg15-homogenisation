@@ -40,7 +40,12 @@ class ModificationRule(Rule):
     Inherits from :class:`Rule` just so we can distinguish when rules can be
     applied in practice.
     """
-    pass
+
+    def _parse_apply_to(self, apply_to):
+        if not isinstance(apply_to, (tuple, list)):
+            return map(str.upper, apply_to)
+        return apply_to.upper()
+
 
 
 
@@ -63,9 +68,15 @@ class UpdateColumnsRule(ModificationRule):
             str or list of str
         """
 
+        self.apply_to = self._parse_apply_to(apply_to)
+        self.columns = columns
+        self.filter_rows = filter_rows
+        self.apply_from = apply_from
+        self.match_by = match_by
+
         self._reproducible_repr_ = {
             "action": "update_columns",
-            "apply_to": apply_to,
+            "apply_to": self.apply_to,
             "columns": columns
         }
         if apply_from is not None:
@@ -74,12 +85,6 @@ class UpdateColumnsRule(ModificationRule):
             self._reproducible_repr_["match_by"] = match_by
         if filter_rows is not None:
             self._reproducible_repr_["filter_rows"] = filter_rows
-
-        self.apply_to = apply_to
-        self.columns = columns
-        self.filter_rows = filter_rows
-        self.apply_from = apply_from
-        self.match_by = match_by
 
 
     @property
@@ -114,22 +119,21 @@ class DeleteRowsRule(ModificationRule):
             str or callable
         """
 
-        if not isinstance(apply_to, (tuple, list)):
-            apply_to = [apply_to]
-
+        self.apply_to = self._parse_apply_to(apply_to)
         if not hasattr(filter_rows, "__call__"):
             try:
-                filter_rows = str(filter_rows)
+                self.filter_rows = str(filter_rows)
             except (TypeError, ValueError):
                 raise TypeError("filter_rows must be a callable or string")
 
+        else:
+            self.filter_rows = filter_rows
+
         self._reproducible_repr_ = {
             "action": "delete_rows",
-            "apply_to": apply_to,
-            "filter_rows": filter_rows
+            "apply_to": self.apply_to,
+            "filter_rows": self.filter_rows
         }
-
-        self.apply_to, self.filter_rows = apply_to, filter_rows
         
 
 

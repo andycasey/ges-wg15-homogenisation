@@ -61,6 +61,25 @@ class WorkingGroupResults(object):
         raise NotImplementedError("no WG file validation rules implemented yet")
 
 
+    def delete_rows(self, where):
+        """
+        Delete row results that match the given expression.
+
+        :param where:
+            A filtering expression on whether a row should be deleted or not. If
+            this returns boolean True, the row will be deleted.
+
+        :type where:
+            callable or str
+        """
+
+        # Is the supplied clause already a callable?
+        # If not we will have to make one.
+        if not hasattr(where, "__call__"):
+            raise NotImplementedError
+
+
+
     def update(self, rule):
         """
         Update the results for this working group based on a given rule.
@@ -76,7 +95,7 @@ class WorkingGroupResults(object):
             raise TypeError("can only update working group files with a "
                 "homogenisation.rules.Rule class")
 
-        
+
 
 
         raise NotImplementedError
