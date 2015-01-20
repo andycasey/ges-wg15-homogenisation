@@ -10,6 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 import logging
 
 # Module-specific
+from . import (rules, wg)
 from .release import DataRelease
 
 # Create a logger.
