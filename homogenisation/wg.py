@@ -14,6 +14,9 @@ import re
 # Third-party
 from astropy.io import fits
 
+# Module-specific
+from .rules import Rule
+
 # Create a logger.
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,7 @@ class WorkingGroupResults(object):
             str
         """
 
+        logger.debug("Loading working group results from {0}".format(filename))
         wg = kwargs.pop("wg", None)
         image = fits.open(filename, **kwargs)
         return cls(image, filename=filename, wg=wg)
@@ -56,7 +60,25 @@ class WorkingGroupResults(object):
     def validate(self):
         raise NotImplementedError("no WG file validation rules implemented yet")
 
+
     def update(self, rule):
+        """
+        Update the results for this working group based on a given rule.
+
+        :param rule:
+            The rule to use to select and update rows.
+
+        :type rule:
+            :class:`homogenisation.rules.Rule`
+        """
+
+        if not isinstance(rule, Rule):
+            raise TypeError("can only update working group files with a "
+                "homogenisation.rules.Rule class")
+
+        
+
+
         raise NotImplementedError
 
     def update_repeated(self, rule):
