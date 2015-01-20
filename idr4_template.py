@@ -6,6 +6,9 @@ from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+# Standard library.
+from glob import glob
+
 import homogenisation
 
 
@@ -13,6 +16,7 @@ import homogenisation
 iDR4 = homogenisation.DataRelease(version="iDR4")
 
 # Load in the working group files, and perform validation checks.
+wg_recommended_filenames = glob("iDR4/*_WG??_Recommended.fits")
 iDR4.ingest(wg_recommended_filenames, validate=True)
 
 # Create some human-readable rules to deal with (1) stars that match some filter,
