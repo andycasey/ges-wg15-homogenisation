@@ -94,22 +94,12 @@ class DataRelease(object):
 
         for wg_name in applies_to_wg_names:
 
-            if isinstance(rule, rules.DeleteRowsRule):
-                self._wg(wg_name).delete_rows(rule.filter_rows)
-
-            elif isinstance(rule, rules.UpdateColumnsRule):
-
-                # Create the additional information we may need from other WGs
-                raise NotImplementedError
-                self._wg(wg_name).update_columns(rule)
-
-            else:
-                raise NotImplementedError("don't know what to do with this kind"
-                    " of rule: {}".format(rule))
+            # Apply this rule to the relevant data table.
+            self._wg(wg_name) = rule.apply(self._wg(wg_name))
 
         # Return the number of rows affected for each WG?
         assert False
-        
+
 
 
     def update_repeated_results(self, rule):
