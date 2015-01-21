@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 class Rule(object):
 
+    _default_env = {
+        "locals": None,
+        "globals": None,
+        "__name__": None,
+        "__file__": None,
+        "__builtins__": None
+    }
+
     @property
     def json(self):
         """ Return the rule in JSON format."""
@@ -33,6 +41,8 @@ class Rule(object):
         """ Return the rule in YAML format. """
         return yaml.dump(self._reproducible_repr_)
 
+    def apply(self, **kwargs):
+        raise RuntimeError("the Rule.apply() function must be overloaded")
 
 
 class ModificationRule(Rule):
@@ -45,8 +55,6 @@ class ModificationRule(Rule):
         if not isinstance(apply_to, (tuple, list)):
             return map(str.upper, apply_to)
         return apply_to.upper()
-
-
 
 
 class UpdateColumnsRule(ModificationRule):
@@ -86,11 +94,24 @@ class UpdateColumnsRule(ModificationRule):
         if filter_rows is not None:
             self._reproducible_repr_["filter_rows"] = filter_rows
 
-
     @property
     def _match_to_external_source(self):
         """ Do we need to match the rows to an external source? """
         return (self.apply_from is not None and self.match_by is not None)
+
+
+    def apply(self, wg_results):
+        """
+        Apply this rule to the results table from a working group lead.
+
+        :param wg_results:
+            The working group results.
+
+        :type wg_results:
+            :class:`homogenisation.wg.WorkingGroupResults`
+        """
+
+        raise NotImplementedError
 
 
 
@@ -135,6 +156,44 @@ class DeleteRowsRule(ModificationRule):
             "filter_rows": self.filter_rows
         }
         
+
+    def apply(self, wg_results, **kwargs):
+        """
+        Apply this rule to the results table from a working group lead.
+
+        :param wg_results:
+            The working group results.
+
+        :type wg_results:
+            :class:`homogenisation.wg.WorkingGroupResults`
+        """
+
+        # Create a mask that follows the `filter_rows`
+        if hasattr(self.filter_rows, "__call__"):
+            func = self.filter_rows
+
+        else:
+            # I know. But this is for a whitelist of people running locally.
+            env = {}.update(self._default_env)
+            env.update(kwargs.pop("env", {}))
+            func = lambda row: eval(self.filter_rows, env=env)
+
+        mask = np.zeros(len(wg_results.data), dtype=bool)
+        for i, row in enumerate(wg_results.data):
+            try:
+                mask[i] = func(row)
+            except:
+                logger.exception("Exception parsing filter function on row {0} "
+                    "in working group wg_results {1}:".format(i, wg_results.wg))
+
+        num = mask.sum()
+        logger.info("{0} rows deleted in {1} results by rule {2}".format(num,
+            wg_results.wg, self))
+
+        # Delete the rows
+        wg_results.data = wg_results.data[~mask]
+
+        return wg_results
 
 
 

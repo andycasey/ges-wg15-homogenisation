@@ -13,6 +13,7 @@ import re
 
 # Third-party
 from astropy.io import fits
+from astropy.table import Table
 
 # Module-specific
 from .rules import Rule
@@ -27,15 +28,18 @@ class WorkingGroupResults(object):
     objects are combined together to form a :class:`homogenisation.DataRelease`.
     """
 
-    def __init__(self, image, **kwargs):
-        self.image = image
+    def __init__(self, data, meta=None, **kwargs):
+        if meta is None:
+            meta = {}
+        self.data = data
+        self.meta = meta
         self.wg = _assign_working_group(
             supplied=kwargs.pop("wg", None),
             filename=kwargs.pop("filename", None),
-            header=image[0].header.get("NODE1", None))
+            header=meta.get("NODE1", None))
 
     @classmethod
-    def from_filename(cls, filename, **kwargs):
+    def from_filename(cls, filename, extension=0, **kwargs):
         """
         Load GES Working Group results from a filename.
 
@@ -44,12 +48,21 @@ class WorkingGroupResults(object):
 
         :type filename:
             str
+
+        :param extension: [optional]
+            The FITS file extension that contains the data.
+
+        :type extension:
+            int
         """
 
         logger.debug("Loading working group results from {0}".format(filename))
         wg = kwargs.pop("wg", None)
-        image = fits.open(filename, **kwargs)
-        return cls(image, filename=filename, wg=wg)
+        with fits.open(filename, **kwargs):
+            image = fits.open(filename, **kwargs)
+            meta = image[0].header
+            data = Table(image[extension].data)
+        return cls(data, filename=filename, wg=wg, meta=meta)
 
 
     @classmethod
@@ -60,45 +73,6 @@ class WorkingGroupResults(object):
     def validate(self):
         raise NotImplementedError("no WG file validation rules implemented yet")
 
-
-    def delete_rows(self, where):
-        """
-        Delete row results that match the given expression.
-
-        :param where:
-            A filtering expression on whether a row should be deleted or not. If
-            this returns boolean True, the row will be deleted.
-
-        :type where:
-            callable or str
-        """
-
-        # Is the supplied clause already a callable?
-        # If not we will have to make one.
-        if not hasattr(where, "__call__"):
-            raise NotImplementedError
-
-
-
-    def update(self, rule):
-        """
-        Update the results for this working group based on a given rule.
-
-        :param rule:
-            The rule to use to select and update rows.
-
-        :type rule:
-            :class:`homogenisation.rules.Rule`
-        """
-
-        if not isinstance(rule, Rule):
-            raise TypeError("can only update working group files with a "
-                "homogenisation.rules.Rule class")
-
-
-
-
-        raise NotImplementedError
 
     def update_repeated(self, rule):
         raise NotImplementedError
