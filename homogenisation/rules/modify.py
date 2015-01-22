@@ -15,6 +15,7 @@ import yaml
 
 # Third-party
 import numpy as np
+from astropy import table
 
 # Module-specific
 from .base import ModificationRule
@@ -181,6 +182,25 @@ class UpdateColumnsRule(ModificationRule):
         env.update(self._default_env)
         env.update(kwargs.pop("env", {}))
 
+        # Just so we don't have to do this within the loop..
+        if self._match_to_external_source:
+            # Is the match to and external source?
+            if self.apply_from not in data_release._wg_names:
+                image = fits.open(self.apply_from)
+                apply_from_extension = kwargs.pop("apply_from_extension", 0)
+                apply_from_data = image[apply_from_extension].data
+
+            else:
+                apply_from_data = data_release._wg(self.apply_from)
+
+            # Check for uniqueness?
+            match_by = self.match_by if self.match_by is not None else ["CNAME"]
+            unique_entries = table.unique(apply_from_data, keys=match_by)
+            if len(apply_from_data) > len(unique_entries):
+                logger.warn("Joining {0} data with data from {1} but the "
+                    "{1} data has multiple rows for combinations of {2}"\
+                    .format(wg, self.apply_from, ", ".join(match_by)))
+
         rows = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         for wg in affected_wgs:
@@ -286,8 +306,116 @@ class UpdateColumnsRule(ModificationRule):
                 # - Filter the rows from the matched table
                 # - Update the columns in those rows accordingly.
 
+                # Join the table by the columns
+                if self.match_by is None:
+                    logger.debug("No columns specified for rule {0} to match "
+                        "{1}, so defaulting to CNAME".format(
+                            self, self.apply_from))
 
-                raise NotImplementedError
+                match_by = self.match_by if self.match_by is not None \
+                    else ["CNAME"]
+
+                # Check for uniqueness?
+                unique_entries = table.unique(wg_results.data, keys=match_by)
+                if len(wg_results.data) > len(unique_entries):
+                    # Raise an exception?
+                    logger.warn("Joining {0} data with data from {1} but the "
+                        "{0} data has multiple rows for combinations of {2}"\
+                        .format(wg, self.apply_from, ", ".join(match_by)))
+
+                logger.debug("Joining {0} data with {1}".format(wg,
+                    self.apply_from))
+
+                if "__TO_INDEX" in wg_results.data.dtype.names:
+                    raise RuntimeError("{0} results file cannot contain column "
+                        "name '__TO_INDEX' - sorry!".format(wg))
+
+                # Append an index column for the wg_results data
+                to_table = wg_results.data.copy()
+                to_table.add_column(table.Column(
+                    data=np.arange(len(wg_results.data)), name="__TO_INDEX"))
+
+                joined_table = table.join(to_table, apply_from_data,
+                    keys=match_by, table_names=["TO", "FROM"],
+                    uniq_col_name="{table_name}_{col_name}")
+
+                # Work on each row in the joined table
+                for row in joined_table:
+
+                    index = row["__TO_INDEX"]
+                    
+                    # Do we have a filter?
+                    if self.filter_rows is None:
+                        update_this_row = True
+                    else:
+                        # Apply the filter
+                        try:
+                            if hasattr(self.filter_rows, "__call__"):
+                                update_this_row = self.filter_rows(row)
+                            else:
+                                env["row"] = row
+                                update_this_row = eval(self.filter_rows, env)
+                                del env["row"]
+
+                        except:
+                            logger.exception("Exception parsing filter function"
+                                " from rule {0} on row {1} in working group {2}"
+                                " of {3}:".format(i, self, wg, data_release))
+                            exceptions[wg] += 1
+                            if debug:
+                                raise
+
+                            # Don't update this row.
+                            continue
+                            
+                        # Force boolean.
+                        update_this_row = bool(update_this_row)
+
+                    if update_this_row:
+                        # If the row passes the filter, then we should update 
+                        # the corresponding row in the wg_results table
+                        old_values = {}
+                        new_values = {}
+                        for column, evaluable in self.columns.iteritems():
+
+                            # Evaluate the value
+                            try:
+                                if hasattr(evaluable, "__call__"):
+                                    value = evaluable(row)
+                                else:
+                                    env["row"] = row
+                                    value = eval(str(evaluable), env)
+                                    del env["row"]
+                            except:
+                                logger.exception("Exception evaluating column "
+                                    "value for {0} from {1} in rule {2} on row "
+                                    "{3} (index {4}) in working group {5} of "
+                                    "{6}:".format(
+                                        column, evaluable, self, index + 1,
+                                        index, wg, data_release))
+                                exceptions[wg] += 1
+                                if debug:
+                                    raise
+
+                                # Move onto the next column.
+                                continue
+
+                            old_values[column] = wg_results.data[column][index]
+                            new_values[column] = value
+                            wg_results.data[column][index] = value
+
+                        logger.debug("Rule {0} has updated row {1} (index {2}) "
+                            "in working group {3} of {4}:".format(self,
+                                index + 1, index, wg, data_release))
+
+                        for k, old_value in old_values.iteritems():
+                            logger.debug("\t{0} updated from {1} to {2}".format(
+                                k, old_value, new_values[k]))
+
+                        rows[wg] += 1
+
+                logger.info("{0} rows updated in {1} results by rule {2}"\
+                    .format(rows[wg], wg, self))
 
         return (True, rows, exceptions)
 
