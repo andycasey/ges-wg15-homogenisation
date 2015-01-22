@@ -95,7 +95,8 @@ class DataRelease(object):
         for wg_name in applies_to_wg_names:
 
             # Apply this rule to the relevant data table.
-            self._wg(wg_name) = rule.apply(self._wg(wg_name))
+            # TODO
+            self._wg_results[self._wg_names.index(wg_name)] = rule.apply(self._wg(wg_name))
 
         # Return the number of rows affected for each WG?
         assert False

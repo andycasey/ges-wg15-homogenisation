@@ -1,6 +1,6 @@
 # coding: utf-8
 
-""" Rules for updating/combining data from different Gaia-ESO Working Groups """
+""" Modification rules for updating data from different Gaia-ESO WGs """
 
 from __future__ import division, print_function
 
@@ -11,50 +11,11 @@ import logging
 import json
 import yaml
 
+# Module-specific
+from .base import ModificationRule
+
 # Create a logger.
 logger = logging.getLogger(__name__)
-
-
-#create,
-#read,
-#update
-#delete
-
-
-class Rule(object):
-
-    _default_env = {
-        "locals": None,
-        "globals": None,
-        "__name__": None,
-        "__file__": None,
-        "__builtins__": None
-    }
-
-    @property
-    def json(self):
-        """ Return the rule in JSON format."""
-        return json.dumps(self._reproducible_repr_, indent=2)
-        
-    @property
-    def yaml(self):
-        """ Return the rule in YAML format. """
-        return yaml.dump(self._reproducible_repr_)
-
-    def apply(self, **kwargs):
-        raise RuntimeError("the Rule.apply() function must be overloaded")
-
-
-class ModificationRule(Rule):
-    """
-    Inherits from :class:`Rule` just so we can distinguish when rules can be
-    applied in practice.
-    """
-
-    def _parse_apply_to(self, apply_to):
-        if not isinstance(apply_to, (tuple, list)):
-            return map(str.upper, apply_to)
-        return apply_to.upper()
 
 
 class UpdateColumnsRule(ModificationRule):
@@ -94,6 +55,37 @@ class UpdateColumnsRule(ModificationRule):
         if filter_rows is not None:
             self._reproducible_repr_["filter_rows"] = filter_rows
 
+
+    def __str__(self):
+        """ Human-readable description of this rule. """
+
+        num_columns = len(self.columns)
+        if num_columns == 1:
+            column_str = "column {}".format(self.columns[0])
+        elif num_columns == 2:
+            column_str = "columns {0} and {1}".format(*self.columns)
+        else:
+            column_str = "{} columns".format(num_columns)
+
+        match_str = ""
+        if self._match_to_external_source:
+            match_str = "from {0} (match by {1})".format(self.apply_from,
+                ", ".join(self.match_by))
+
+        filter_str = ""
+        if self.filter_rows is not None:
+            filter_str = "where '{0}'".format(self.filter_rows)
+
+        _ = "<homogenisation.rule.UpdateColumns update {0} in {1} data {2} {3}"\
+            .format(column_str, ", ".join(self.apply_to), match_str, filter_str)
+        return "{}>".format(re.sub(" +", " ", _.strip()))
+
+        
+    def __repr__(self):
+        return "<homogenisation.rule.UpdateColumnsRule at {}>"\
+            .format(hex(id(self)))
+
+
     @property
     def _match_to_external_source(self):
         """ Do we need to match the rows to an external source? """
@@ -111,7 +103,28 @@ class UpdateColumnsRule(ModificationRule):
             :class:`homogenisation.wg.WorkingGroupResults`
         """
 
+        if wg_results.wg not in self.apply_to:
+            raise ValueError("this rule applies to {0} and is not meant to "
+                "apply to {1}".format(", ".join(self.apply_to), wg_results.wg))
+
+        # If we don't have to match to an external source:
+        # - Just need to update columns for rows that meet some filter.
+        # - If no filter exists, then the rule is applied to all rows.
+
+        # If we do need to match to an external source:
+        # - If the external source is a WG file then we should have been passed
+        #   it in the kwargs from :func:`homogenisation.DataRelease.apply_rule`
+        # - If it's not a WG file then we should load it.
+        # - Match the tables by the required columns
+        # - Filter the rows from the matched table
+        # - Update the columns in those rows accordingly
+
+        # Do the columns exist?
+
+        # 
+
         raise NotImplementedError
+
 
 
 
@@ -157,6 +170,13 @@ class DeleteRowsRule(ModificationRule):
         }
         
 
+    def __str__(self):
+        return "<homogenisation.rule.DeleteRows from {0} data where '{1}'>"\
+            .format(", ".join(self.apply_to), self.filter_rows)
+
+    def __repr__(self):
+        return "<homogenisation.rule.DeleteRowsRule at {}>".format(hex(id(self)))
+
     def apply(self, wg_results, **kwargs):
         """
         Apply this rule to the results table from a working group lead.
@@ -167,6 +187,10 @@ class DeleteRowsRule(ModificationRule):
         :type wg_results:
             :class:`homogenisation.wg.WorkingGroupResults`
         """
+
+        if wg_results.wg not in self.apply_to:
+            raise ValueError("this rule applies to {0} and is not meant to "
+                "apply to {1}".format(", ".join(self.apply_to), wg_results.wg))
 
         # Create a mask that follows the `filter_rows`
         if hasattr(self.filter_rows, "__call__"):
@@ -196,17 +220,3 @@ class DeleteRowsRule(ModificationRule):
         return wg_results
 
 
-
-# possible actions:
-# update_columns, delete_rows
-    # update_columns can take columns as a list of dicts (e.g. internal update) or
-    # a list of columns where a apply_from + match_by exists.
-    # NOTE: A RULE SHOULD NEVER BE ALLOWED TO CHANGE THE CNAME
-
-# requirement for delete_rows action:
-# needs apply_to, filter_rows
-
-# requirement for update_columns:
-# columns, apply_to, (apply_from + match_by) OR (filter_rows)
-
-# ALL so far need: action, apply_to.

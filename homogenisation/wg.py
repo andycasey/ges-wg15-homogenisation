@@ -15,9 +15,6 @@ import re
 from astropy.io import fits
 from astropy.table import Table
 
-# Module-specific
-from .rules import Rule
-
 # Create a logger.
 logger = logging.getLogger(__name__)
 
