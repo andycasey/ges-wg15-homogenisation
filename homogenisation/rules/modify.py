@@ -93,16 +93,21 @@ class UpdateColumnsRule(ModificationRule):
         return (self.apply_from is not None and self.match_by is not None)
 
 
-    def apply(self, wg_results):
+    def apply(self, data_release):
         """
-        Apply this rule to the results table from a working group lead.
+        Apply this rule to a data release.
 
-        :param wg_results:
+        :param data_release:
             The working group results.
 
-        :type wg_results:
-            :class:`homogenisation.wg.WorkingGroupResults`
+        :type data_release:
+            :class:`homogenisation.release.DataRelease`
         """
+
+        # See if there are any WGs in this data release that are affected by
+        # this rule.
+
+        raise NotImplementedError
 
         if wg_results.wg not in self.apply_to:
             raise ValueError("this rule applies to {0} and is not meant to "
@@ -175,24 +180,29 @@ class DeleteRowsRule(ModificationRule):
         return "<homogenisation.rule.DeleteRows from {0} data where '{1}'>"\
             .format(", ".join(self.apply_to), self.filter_rows)
 
+
     def __repr__(self):
-        return "<homogenisation.rule.DeleteRowsRule at {}>".format(hex(id(self)))
+        return "<homogenisation.rule.DeleteRowsRule at {}>"\
+            .format(hex(id(self)))
 
 
-    def apply(self, wg_results, **kwargs):
+    def apply(self, data_release, **kwargs):
         """
-        Apply this rule to the results table from a working group lead.
+        Apply this rule to a data release.
 
-        :param wg_results:
+        :param data_release:
             The working group results.
 
-        :type wg_results:
-            :class:`homogenisation.wg.WorkingGroupResults`
+        :type data_release:
+            :class:`homogenisation.release.DataRelease`
         """
 
-        if wg_results.wg not in self.apply_to:
-            raise ValueError("this rule applies to {0} and is not meant to "
-                "apply to {1}".format(", ".join(self.apply_to), wg_results.wg))
+        affected_wgs = self._affected_wgs(data_release)
+        if len(affected_wgs) == 0:
+            logger.warn("No working groups in data release {0} ({1}) that are "
+                "affected by rule {1}".format(data_release,
+                    ", ".join(data_release._wg_names), self))
+            return (False, {})
 
         # Create a mask that follows the `filter_rows`
         if hasattr(self.filter_rows, "__call__"):
@@ -204,21 +214,27 @@ class DeleteRowsRule(ModificationRule):
             env.update(kwargs.pop("env", {}))
             func = lambda row: eval(self.filter_rows, env=env)
 
-        mask = np.zeros(len(wg_results.data), dtype=bool)
-        for i, row in enumerate(wg_results.data):
-            try:
-                mask[i] = func(row)
-            except:
-                logger.exception("Exception parsing filter function on row {0} "
-                    "in working group wg_results {1}:".format(i, wg_results.wg))
+        # Apply the rule to the results from each affected WG
+        rows = {}
+        for wg in affected_wgs:
 
-        num = mask.sum()
-        logger.info("{0} rows deleted in {1} results by rule {2}".format(num,
-            wg_results.wg, self))
+            wg_results = data_release._wg(wg)
+            mask = np.zeros(len(wg_results.data), dtype=bool)
+            for i, row in enumerate(wg_results.data):
+                try:
+                    mask[i] = func(row)
+                except:
+                    logger.exception("Exception parsing filter function from "
+                        "rule {0} on row {1} in working group {2} of {3}:"\
+                        .format(i, self, wg, data_release))
 
-        # Delete the rows
-        wg_results.data = wg_results.data[~mask]
+            # Delete the rows
+            rows[wg] = mask.sum()
+            index = data_release._wg_names.index(wg)
+            data_release._wg_results[index].data = wg_results.data[~mask]
+            logger.info("{0} rows deleted in {1} results by rule {2}".format(
+                rows[wg], wg, self))
 
-        return wg_results
+        return (True, rows)
 
 
