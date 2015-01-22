@@ -10,6 +10,7 @@ __all__ = ["DeleteRowsRule", "UpdateColumnsRule"]
 # Standard library
 import logging
 import json
+import re
 import yaml
 
 # Third-party
@@ -47,17 +48,55 @@ class UpdateColumnsRule(ModificationRule):
 
         :type columns:
             dict
+
+        :param filter_rows: [optional]
+            A filter to use on each row. If the filter evaluates to True, then
+            the row in the set of results will be deleted.
+
+        :type filter_rows:
+            str or callable
+
+        :param apply_from: [optional]
+            If `apply_from` is not supplied, then the rule is expecting to 
+            update affected working group results. However, if `apply_from` is
+            given (which can be a working group reference or an external file)
+            then the affected working group results will be matched against the
+            data in `apply_from`, and values from the matched row are available
+            in the `columns` expressions as `matched_row`.
+
+        :type apply_from:
+            str, referencing a filename or a working group (e.g., WG14)
+
+        :param match_by: [optional]
+            When `apply_from` is used to match data to another table, the 
+            `match_by` parameter specifies the column(s) to use to match
+            identical rows. If `apply_from` is provided and `match_by` is not
+            specified, this will default to matching by CNAME. However, the
+            `match_by` term can be used to match tables by multiple columns.
+            An example might be `('CNAME', 'SETUP')` to match rows from an
+            existing file by CNAME and SETUP.
+
+        :type match_by:
+            str, or a list of str
         """
 
         self.apply_to = self._parse_apply_to(apply_to)
         if not isinstance(columns, dict):
             raise TypeError("columns must be a dictionary with column names as "
                 "keys and evaluable strings (or functions) as values")
-        if "CNAME" in map(str.upper, self.columns.keys()):
+        if "CNAME" in map(str.upper, columns.keys()):
             raise ValueError("cannot update CNAME of rows because matches are "
                 "performed on CNAMEs")
 
+        self.columns = columns
         self.filter_rows = filter_rows
+        if self.filter_rows is not None:
+            if not hasattr(self.filter_rows, "__call__"):
+                try:
+                    self.filter_rows = str(self.filter_rows)
+                except (TypeError, ValueError):
+                    raise TypeError("filter_rows must be a callable or string")
+
         self.apply_from = apply_from
         self.match_by = match_by
 
@@ -110,7 +149,7 @@ class UpdateColumnsRule(ModificationRule):
         return (self.apply_from is not None and self.match_by is not None)
 
 
-    def apply(self, data_release, **kwargs):
+    def apply(self, data_release, debug=False, **kwargs):
         """
         Apply this rule to a data release.
 
@@ -119,11 +158,16 @@ class UpdateColumnsRule(ModificationRule):
 
         :type data_release:
             :class:`homogenisation.release.DataRelease`
+
+        :param debug: [optional]
+            Re-raise any exception that occurs while parsing the rule filter.
+
+        :type debug:
+            bool
         """
 
         # See if there are any WGs in this data release that are affected by
         # this rule.
-        debug = kwargs.pop("debug", False)
         affected_wgs = self._affected_wgs(data_release)
         if len(affected_wgs) == 0:
             logger.warn("No working groups in data release {0} ({1}) that are "
@@ -140,16 +184,28 @@ class UpdateColumnsRule(ModificationRule):
         rows = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         for wg in affected_wgs:
+
+            wg_results = data_release._wg(wg)
+
+            # Do all the columns exist in this WG?
+            for column in self.columns.keys():
+                if column not in wg_results.data.dtype.names:
+                    raise ValueError("column name {0} does not exist in the {1}"
+                        " table, so rule {2} cannot be applied".format(column,
+                            wg, self))
+            logger.debug("All columns for rule {0} appear in WG {1}".format(
+                self, wg))
+
             # If we don't have to match to an external source:
             # - Just need to update columns for rows that meet some filter.
             # - If no filter exists, then the rule is applied to all rows.
             if not self._match_to_external_source:
                 # This is just an internal update to a WG results file.
-                wg_results = data_release._wg(wg)
                 for i, row in enumerate(wg_results.data):
 
                     # Do we have a filter?
                     if self.filter_rows is None:
+                        # Then we assume this applies to all rows.
                         update_this_row = True
                     else:
                         # Apply the filter
@@ -188,11 +244,11 @@ class UpdateColumnsRule(ModificationRule):
                                     value = evaluable(row)
                                 else:
                                     env["row"] = row
-                                    value = eval(evaluable, env)
+                                    value = eval(str(evaluable), env)
                                     del env["row"]
                             except:
                                 logger.exception("Exception evaluating column "
-                                    "value for {0} from {1} in rule {2} on row"
+                                    "value for {0} from {1} in rule {2} on row "
                                     "{3} (index {4}) in working group {5} of "
                                     "{6}:".format(
                                         column, evaluable, self, i + 1, i, wg,
@@ -201,12 +257,15 @@ class UpdateColumnsRule(ModificationRule):
                                 if debug:
                                     raise
 
+                                # Move onto the next column.
+                                continue
+
                             old_values[column] = wg_results.data[column][i]
                             new_values[column] = value
                             wg_results.data[column][i] = value
 
                         logger.debug("Rule {0} has updated row {1} (index {2}) "
-                            "in working group {2} of {3}:".format(self, i + 1,
+                            "in working group {3} of {4}:".format(self, i + 1,
                                 i, wg, data_release))
 
                         for k, old_value in old_values.iteritems():
@@ -215,22 +274,22 @@ class UpdateColumnsRule(ModificationRule):
 
                         rows[wg] += 1
 
-        # If we do need to match to an external source:
-        # - If the external source is a WG file then we should have been passed
-        #   it in the kwargs from :func:`homogenisation.DataRelease.apply_rule`
-        # - If it's not a WG file then we should load it.
-        # - Match the tables by the required columns
-        # - Filter the rows from the matched table
-        # - Update the columns in those rows accordingly
+                logger.info("{0} rows updated in {1} results by rule {2}"\
+                    .format(rows[wg], wg, self))
 
-        # Do the columns exist?
-
-        # 
-
-        raise NotImplementedError
+            else:
+                # If we do need to match to an external source:
+                # - If the external source is a filename then we should load it
+                # - If the external source is not a filename, then we assume it
+                #   is a WG and we should reference that table
+                # - We should join the tables by the required columns
+                # - Filter the rows from the matched table
+                # - Update the columns in those rows accordingly.
 
 
+                raise NotImplementedError
 
+        return (True, rows, exceptions)
 
 
 class DeleteRowsRule(ModificationRule):
@@ -284,7 +343,7 @@ class DeleteRowsRule(ModificationRule):
             .format(hex(id(self)))
 
 
-    def apply(self, data_release, **kwargs):
+    def apply(self, data_release, debug=False, **kwargs):
         """
         Apply this rule to a data release.
 
@@ -293,9 +352,14 @@ class DeleteRowsRule(ModificationRule):
 
         :type data_release:
             :class:`homogenisation.release.DataRelease`
+
+        :param debug: [optional]
+            Re-raise any exception that occurs while parsing the rule filter.
+
+        :type debug:
+            bool
         """
 
-        debug = kwargs.pop("debug", False)
         affected_wgs = self._affected_wgs(data_release)
         if len(affected_wgs) == 0:
             logger.warn("No working groups in data release {0} ({1}) that are "

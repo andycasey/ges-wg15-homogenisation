@@ -12,6 +12,9 @@ import logging
 import json
 import yaml
 
+# Third-party.
+import numpy as np
+
 # Create a logger.
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,9 @@ class Rule(object):
         "globals": None,
         "__name__": None,
         "__file__": None,
-        "__builtins__": None
+        "__builtins__": None,
+        # Some numpy functions
+        "isfinite": np.isfinite
     }
 
     @property
@@ -52,7 +57,7 @@ class ModificationRule(Rule):
     def _parse_apply_to(self, apply_to):
         if isinstance(apply_to, (tuple, list)):
             return map(str.upper, apply_to)
-        return apply_to.upper()
+        return [apply_to.upper()]
 
 
     def _affected_wgs(self, data_release):

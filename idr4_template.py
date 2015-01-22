@@ -39,6 +39,23 @@ delete_skymapper_stars = homogenisation.rules.DeleteRowsRule(
     apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
     filter_rows="row['OBJECT'].startswith('U_skm_')")
 
+"""
+update_velocity_offset1:
+    action: update_columns
+    columns:
+        - VRAD: row.vrad + 0.33
+        - VRAD_OFFSET: 0.33
+        - VRAD_OFFSETSOURCE: SOMEWHERE
+    filter_rows:
+        - some_filter
+    apply_to: wg10
+"""
+update_velocity_offset = homogenisation.rules.UpdateColumnsRule(
+    apply_to="WG10", columns={
+        "VRAD": "row['VEL'] + 0.33",
+        "E_VRAD": 1
+    },
+    filter_rows="isfinite(row['VEL'])")
 
 raise a
 
