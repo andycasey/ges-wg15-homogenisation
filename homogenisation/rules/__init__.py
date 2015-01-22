@@ -5,4 +5,5 @@
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 from .base import (ModificationRule, CombinationRule)
-from . import modify #, combine
+from .modify import *
+#from .combine import *

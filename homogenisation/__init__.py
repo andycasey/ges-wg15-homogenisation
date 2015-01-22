@@ -19,7 +19,8 @@ logging.basicConfig(level=logging.DEBUG,
     datefmt="%m-%d %H:%M", filename="GES-WG15-homogenisation.log", filemode="a")
 
 console = logging.StreamHandler()
-console.setLevel(logging.INFO)
+#console.setLevel(logging.INFO)
+console.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)

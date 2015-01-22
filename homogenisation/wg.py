@@ -37,7 +37,7 @@ class RecommendedResults(object):
             header=meta.get("NODE1", None))
 
     @classmethod
-    def from_filename(cls, filename, extension=0, **kwargs):
+    def from_filename(cls, filename, extension=1, **kwargs):
         """
         Load GES Working Group results from a filename.
 
@@ -56,8 +56,7 @@ class RecommendedResults(object):
 
         logger.debug("Loading working group results from {0}".format(filename))
         wg = kwargs.pop("wg", None)
-        with fits.open(filename, **kwargs):
-            image = fits.open(filename, **kwargs)
+        with fits.open(filename, **kwargs) as image:
             meta = image[0].header
             data = Table(image[extension].data)
         return cls(data, filename=filename, wg=wg, meta=meta)
@@ -107,7 +106,7 @@ def _assign_working_group(supplied, filename, header):
             wg_assigned = filename
 
     logger.debug("Assigning WG '{0}' for {1} (suppled: {2}, header: {3}, "
-        "filename: {4}".format(wg_assigned, filename, supplied,
+        "filename: {4})".format(wg_assigned, filename, supplied,
             header, filename))
 
     # Make some checks to warn the user.

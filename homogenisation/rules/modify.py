@@ -12,6 +12,9 @@ import logging
 import json
 import yaml
 
+# Third-party
+import numpy as np
+
 # Module-specific
 from .base import ModificationRule
 
@@ -22,7 +25,7 @@ logger = logging.getLogger(__name__)
 class UpdateColumnsRule(ModificationRule):
 
     def __init__(self, apply_to, columns, filter_rows=None, apply_from=None,
-        match_by=None):
+        match_by="CNAME"):
         """
         Create a rule that acts on working group results and updates columns
         that match some filter, or match rows in an external filename or other
@@ -39,10 +42,17 @@ class UpdateColumnsRule(ModificationRule):
         """
 
         self.apply_to = self._parse_apply_to(apply_to)
-        self.columns = columns
+        self.columns = [columns] if not isinstance(columns, (tuple, list)) \
+            else columns
+        if "CNAME" in map(str.upper, self.columns):
+            raise ValueError("cannot update CNAME of rows because matches are "
+                "performed on CNAMEs")
+
         self.filter_rows = filter_rows
         self.apply_from = apply_from
-        self.match_by = match_by
+        self.match_by = [match_by] if not isinstance(match_by, (tuple, list)) \
+            else match_by
+
 
         self._reproducible_repr_ = {
             "action": "update_columns",
@@ -75,7 +85,7 @@ class UpdateColumnsRule(ModificationRule):
 
         filter_str = ""
         if self.filter_rows is not None:
-            filter_str = "where '{0}'".format(self.filter_rows)
+            filter_str = "where {0}".format(self.filter_rows)
 
         _ = "<homogenisation.rule.UpdateColumns update {0} in {1} data {2} {3}"\
             .format(column_str, ", ".join(self.apply_to), match_str, filter_str)
@@ -106,12 +116,12 @@ class UpdateColumnsRule(ModificationRule):
 
         # See if there are any WGs in this data release that are affected by
         # this rule.
-
-        raise NotImplementedError
-
-        if wg_results.wg not in self.apply_to:
-            raise ValueError("this rule applies to {0} and is not meant to "
-                "apply to {1}".format(", ".join(self.apply_to), wg_results.wg))
+        affected_wgs = self._affected_wgs(data_release)
+        if len(affected_wgs) == 0:
+            logger.warn("No working groups in data release {0} ({1}) that are "
+                "affected by rule {1}".format(data_release,
+                    ", ".join(data_release._wg_names), self))
+            return (False, {}, {})
 
         # If we don't have to match to an external source:
         # - Just need to update columns for rows that meet some filter.
@@ -177,7 +187,7 @@ class DeleteRowsRule(ModificationRule):
         
 
     def __str__(self):
-        return "<homogenisation.rule.DeleteRows from {0} data where '{1}'>"\
+        return "<homogenisation.rule.DeleteRows from {0} data where {1}>"\
             .format(", ".join(self.apply_to), self.filter_rows)
 
 
@@ -197,44 +207,62 @@ class DeleteRowsRule(ModificationRule):
             :class:`homogenisation.release.DataRelease`
         """
 
+        debug = kwargs.pop("debug", False)
         affected_wgs = self._affected_wgs(data_release)
         if len(affected_wgs) == 0:
             logger.warn("No working groups in data release {0} ({1}) that are "
                 "affected by rule {1}".format(data_release,
                     ", ".join(data_release._wg_names), self))
-            return (False, {})
+            return (False, {}, {})
 
-        # Create a mask that follows the `filter_rows`
-        if hasattr(self.filter_rows, "__call__"):
-            func = self.filter_rows
-
-        else:
-            # I know. But this is for a whitelist of people running locally.
-            env = {}.update(self._default_env)
-            env.update(kwargs.pop("env", {}))
-            func = lambda row: eval(self.filter_rows, env=env)
+        # Create an environment for if the filter is a string.
+        # I know. But this is for a whitelist of people running locally.
+        env = {}
+        env.update(self._default_env)
+        env.update(kwargs.pop("env", {}))
 
         # Apply the rule to the results from each affected WG
         rows = {}
+        exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         for wg in affected_wgs:
 
             wg_results = data_release._wg(wg)
             mask = np.zeros(len(wg_results.data), dtype=bool)
             for i, row in enumerate(wg_results.data):
+
                 try:
-                    mask[i] = func(row)
+                    if hasattr(self.filter_rows, "__call__"):
+                        mask[i] = self.filter_rows(row)
+                    else:
+                        env["row"] = row
+                        mask[i] = eval(self.filter_rows, env)
+
                 except:
                     logger.exception("Exception parsing filter function from "
                         "rule {0} on row {1} in working group {2} of {3}:"\
                         .format(i, self, wg, data_release))
+                    exceptions[wg] += 1
+                    if debug:
+                        raise
 
             # Delete the rows
             rows[wg] = mask.sum()
             index = data_release._wg_names.index(wg)
-            data_release._wg_results[index].data = wg_results.data[~mask]
             logger.info("{0} rows deleted in {1} results by rule {2}".format(
                 rows[wg], wg, self))
+            if rows[wg] > 0:
+                # Show some summary of those lines?
+                for i in np.where(mask)[0]:
+                    logger.debug("\tRow {0} (index {1}) of {2} data with CNAME "
+                        "/ OBJECT / TARGET : {3} / {4} / {5} has been deleted"\
+                        .format(i + 1, i, wg,
+                            wg_results.data["CNAME"][i],
+                            wg_results.data["OBJECT"][i],
+                            wg_results.data["TARGET"][i]))
 
-        return (True, rows)
+            # OK, now that we have logged this info, actually delete it.
+            data_release._wg_results[index].data = wg_results.data[~mask]
+            
+        return (True, rows, exceptions)
 
 
