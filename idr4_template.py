@@ -57,6 +57,33 @@ update_velocity_offset = homogenisation.rules.UpdateColumnsRule(
     },
     filter_rows="isfinite(row['VEL'])")
 
+
+# Propagate all WG14 flags to the other WG files. Join w/ existing flags?
+"""
+update_flags_from_wg14:
+    action: update_columns
+    columns:
+        - FLAGS: row_from.flags + '|' + row_to.flags
+    match_by:
+        - CNAME
+        - SETUP
+    apply_from: wg14
+    apply_to:
+        - wg10
+        - wg11
+        - wg12
+        - wg13
+        - wg14 
+"""
+propagate_flags = homogenisation.rules.UpdateColumnsRule(
+    apply_to=("WG10", "WG11", "WG12", "WG13"),
+    columns={
+        "FLAGS": "row['TO_FLAGS'] + '|' + row['FROM_FLAGS']"
+    },
+    match_by=["CNAME", "SETUP"],
+    apply_from="WG14")
+
+
 raise a
 
 

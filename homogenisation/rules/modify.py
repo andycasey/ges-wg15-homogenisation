@@ -63,7 +63,7 @@ class UpdateColumnsRule(ModificationRule):
             given (which can be a working group reference or an external file)
             then the affected working group results will be matched against the
             data in `apply_from`, and values from the matched row are available
-            in the `columns` expressions as `matched_row`.
+            in the `row` as, for example, `FROM_TEFF` (opposed to `TO_TEFF`).
 
         :type apply_from:
             str, referencing a filename or a working group (e.g., WG14)
@@ -195,7 +195,7 @@ class UpdateColumnsRule(ModificationRule):
 
             # Check for uniqueness?
             match_by = self.match_by if self.match_by is not None else ["CNAME"]
-            unique_entries = table.unique(apply_from_data, keys=match_by)
+            unique_entries = unique_table(apply_from_data, keys=match_by)
             if len(apply_from_data) > len(unique_entries):
                 logger.warn("Joining {0} data with data from {1} but the "
                     "{1} data has multiple rows for combinations of {2}"\
@@ -316,7 +316,7 @@ class UpdateColumnsRule(ModificationRule):
                     else ["CNAME"]
 
                 # Check for uniqueness?
-                unique_entries = table.unique(wg_results.data, keys=match_by)
+                unique_entries = unique_table(wg_results.data, keys=match_by)
                 if len(wg_results.data) > len(unique_entries):
                     # Raise an exception?
                     logger.warn("Joining {0} data with data from {1} but the "
@@ -546,3 +546,48 @@ class DeleteRowsRule(ModificationRule):
         return (True, rows, exceptions)
 
 
+
+
+def unique_table(input_table, keys=None, silent=False):
+    """
+    Returns the unique rows of a table.
+    Parameters
+    ----------
+    input_table : `~astropy.table.Table` object or a value that
+    will initialize a `~astropy.table.Table` object
+        Input table.
+    keys : str or list of str
+        Name(s) of column(s) used to unique rows.
+        Default is to use all columns.
+    silent : boolean
+        If `True` masked value column(s) are silently removed from
+        ``keys``. If `False` an exception is raised when ``keys`` contains
+        masked value column(s).
+        Default is `False`.
+    Returns
+    -------
+    unique_table : `~astropy.table.Table` object
+        Table containing only the unique rays of ``input_table``.
+    """
+
+    if keys is None:
+        keys = input_table.colnames
+
+    if input_table.masked:
+        if isinstance(keys, six.string_types):
+            keys = [keys, ]
+        for i, key in enumerate(keys):
+            if np.any(input_table[key].mask):
+                if not silent:
+                    raise ValueError("Cannot unique masked value key columns, "
+                                     "remove column '{0}' from keys and rerun "
+                                     "unique.".format(key))
+                del keys[i]
+        if len(keys) == 0:
+            raise ValueError("No column remained in ``keys``, unique cannot "
+                             "work with masked value key columns.")
+
+    grouped_table = input_table.group_by(keys)
+    unique_table = grouped_table[grouped_table.groups.indices[:-1]]
+
+    return unique_table
