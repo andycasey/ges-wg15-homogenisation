@@ -5,13 +5,13 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["DataRelease"]
 
 # Standard library
 import logging
 
 # Module-specific
-from . import rules
-from .wg import WorkingGroupResults
+from . import (rules, wg)
 
 # Create a logger.
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class DataRelease(object):
 
         # Load the working group files into this DataRelease
         self._wg_results = \
-            [WorkingGroupResults.from_filename(filename, validate=validate) \
+            [wg.RecommendedResults.from_filename(filename, validate=validate) \
                 for filename in filenames]
 
         # Keep an attribute for accessing which WG they are.

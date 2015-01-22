@@ -5,6 +5,7 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["DeleteRowsRule", "UpdateColumnsRule"]
 
 # Standard library
 import logging
@@ -176,6 +177,7 @@ class DeleteRowsRule(ModificationRule):
 
     def __repr__(self):
         return "<homogenisation.rule.DeleteRowsRule at {}>".format(hex(id(self)))
+
 
     def apply(self, wg_results, **kwargs):
         """

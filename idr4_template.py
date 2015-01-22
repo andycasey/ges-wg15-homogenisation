@@ -16,13 +16,14 @@ import homogenisation
 iDR4 = homogenisation.DataRelease(version="iDR4")
 
 # Load in the working group files, and perform validation checks.
-wg_recommended_filenames = glob("iDR4/*_WG??_Recommended.fits")
+path = "/Users/arc/research/ges/homogenisation/data/*_WG??_Recommended.fits"
+wg_recommended_filenames = glob(path)
 iDR4.ingest(wg_recommended_filenames, validate=True)
 
 # Create some human-readable rules to deal with (1) stars that match some filter,
 # and (2) multiple measurements for a given star.
 
-
+raise a
 
 
 # Update the WG results based on some rules.

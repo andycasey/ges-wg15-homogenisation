@@ -5,6 +5,7 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["Rule", "CombinationRule", "ModificationRule"]
 
 # Standard library
 import logging
