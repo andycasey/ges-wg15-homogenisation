@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class UpdateColumnsRule(ModificationRule):
 
     def __init__(self, apply_to, columns, filter_rows=None, apply_from=None,
-        match_by="CNAME"):
+        match_by=None):
         """
         Create a rule that acts on working group results and updates columns
         that match some filter, or match rows in an external filename or other
@@ -39,20 +39,27 @@ class UpdateColumnsRule(ModificationRule):
 
         :type apply_to:
             str or list of str
+
+        :param columns:
+            The data columns to update in the affected WG results. This is
+            expected to contain the names of the columns as keys, and an
+            evaluable function (or string) as values.
+
+        :type columns:
+            dict
         """
 
         self.apply_to = self._parse_apply_to(apply_to)
-        self.columns = [columns] if not isinstance(columns, (tuple, list)) \
-            else columns
-        if "CNAME" in map(str.upper, self.columns):
+        if not isinstance(columns, dict):
+            raise TypeError("columns must be a dictionary with column names as "
+                "keys and evaluable strings (or functions) as values")
+        if "CNAME" in map(str.upper, self.columns.keys()):
             raise ValueError("cannot update CNAME of rows because matches are "
                 "performed on CNAMEs")
 
         self.filter_rows = filter_rows
         self.apply_from = apply_from
-        self.match_by = [match_by] if not isinstance(match_by, (tuple, list)) \
-            else match_by
-
+        self.match_by = match_by
 
         self._reproducible_repr_ = {
             "action": "update_columns",
@@ -103,7 +110,7 @@ class UpdateColumnsRule(ModificationRule):
         return (self.apply_from is not None and self.match_by is not None)
 
 
-    def apply(self, data_release):
+    def apply(self, data_release, **kwargs):
         """
         Apply this rule to a data release.
 
@@ -116,6 +123,7 @@ class UpdateColumnsRule(ModificationRule):
 
         # See if there are any WGs in this data release that are affected by
         # this rule.
+        debug = kwargs.pop("debug", False)
         affected_wgs = self._affected_wgs(data_release)
         if len(affected_wgs) == 0:
             logger.warn("No working groups in data release {0} ({1}) that are "
@@ -123,9 +131,89 @@ class UpdateColumnsRule(ModificationRule):
                     ", ".join(data_release._wg_names), self))
             return (False, {}, {})
 
-        # If we don't have to match to an external source:
-        # - Just need to update columns for rows that meet some filter.
-        # - If no filter exists, then the rule is applied to all rows.
+        # Create an environment for if the filter is a string.
+        # I know. But this is for a whitelist of people running locally.
+        env = {}
+        env.update(self._default_env)
+        env.update(kwargs.pop("env", {}))
+
+        rows = dict(zip(affected_wgs, [0] * len(affected_wgs)))
+        exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
+        for wg in affected_wgs:
+            # If we don't have to match to an external source:
+            # - Just need to update columns for rows that meet some filter.
+            # - If no filter exists, then the rule is applied to all rows.
+            if not self._match_to_external_source:
+                # This is just an internal update to a WG results file.
+                wg_results = data_release._wg(wg)
+                for i, row in enumerate(wg_results.data):
+
+                    # Do we have a filter?
+                    if self.filter_rows is None:
+                        update_this_row = True
+                    else:
+                        # Apply the filter
+                        try:
+                            if hasattr(self.filter_rows, "__call__"):
+                                update_this_row = self.filter_rows(row)
+                            else:
+                                env["row"] = row
+                                update_this_row = eval(self.filter_rows, env)
+                                del env["row"]
+
+                        except:
+                            logger.exception("Exception parsing filter function"
+                                " from rule {0} on row {1} in working group {2}"
+                                " of {3}:".format(i, self, wg, data_release))
+                            exceptions[wg] += 1
+                            if debug:
+                                raise
+
+                            # Don't update this row.
+                            continue
+                            
+                        # Force boolean.
+                        update_this_row = bool(update_this_row)
+
+                    # Does this rule apply to this row of this WG?
+                    if update_this_row:
+
+                        old_values = {}
+                        new_values = {}
+                        for column, evaluable in self.columns.iteritems():
+
+                            # Evaluate the value
+                            try:
+                                if hasattr(evaluable, "__call__"):
+                                    value = evaluable(row)
+                                else:
+                                    env["row"] = row
+                                    value = eval(evaluable, env)
+                                    del env["row"]
+                            except:
+                                logger.exception("Exception evaluating column "
+                                    "value for {0} from {1} in rule {2} on row"
+                                    "{3} (index {4}) in working group {5} of "
+                                    "{6}:".format(
+                                        column, evaluable, self, i + 1, i, wg,
+                                        data_release))
+                                exceptions[wg] += 1
+                                if debug:
+                                    raise
+
+                            old_values[column] = wg_results.data[column][i]
+                            new_values[column] = value
+                            wg_results.data[column][i] = value
+
+                        logger.debug("Rule {0} has updated row {1} (index {2}) "
+                            "in working group {2} of {3}:".format(self, i + 1,
+                                i, wg, data_release))
+
+                        for k, old_value in old_values.iteritems():
+                            logger.debug("\t{0} updated from {1} to {2}".format(
+                                k, old_value, new_values[k]))
+
+                        rows[wg] += 1
 
         # If we do need to match to an external source:
         # - If the external source is a WG file then we should have been passed
@@ -222,7 +310,7 @@ class DeleteRowsRule(ModificationRule):
         env.update(kwargs.pop("env", {}))
 
         # Apply the rule to the results from each affected WG
-        rows = {}
+        rows = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         for wg in affected_wgs:
 
@@ -262,7 +350,7 @@ class DeleteRowsRule(ModificationRule):
 
             # OK, now that we have logged this info, actually delete it.
             data_release._wg_results[index].data = wg_results.data[~mask]
-            
+
         return (True, rows, exceptions)
 
 
