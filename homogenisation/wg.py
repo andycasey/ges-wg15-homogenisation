@@ -5,6 +5,7 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["RecommendedResults"]
 
 # Standard library
 import logging
@@ -18,10 +19,10 @@ from astropy.table import Table
 # Create a logger.
 logger = logging.getLogger(__name__)
 
-class WorkingGroupResults(object):
+class RecommendedResults(object):
     """
     A class to represent results from a given Gaia-ESO Survey Working Group.
-    It is expected that the results from many :class:`WorkingGroupResults`
+    It is expected that the results from many :class:`RecommendedResults`
     objects are combined together to form a :class:`homogenisation.DataRelease`.
     """
 
