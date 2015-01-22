@@ -37,8 +37,10 @@ class Rule(object):
         """ Return the rule in YAML format. """
         return yaml.dump(self._reproducible_repr_)
 
-    def apply(self, **kwargs):
+    def apply(self, data_delease, **kwargs):
         raise RuntimeError("the Rule.apply() function must be overloaded")
+
+
 
 
 class ModificationRule(Rule):
@@ -51,6 +53,15 @@ class ModificationRule(Rule):
         if not isinstance(apply_to, (tuple, list)):
             return map(str.upper, apply_to)
         return apply_to.upper()
+
+
+    def _affected_wgs(self, data_release):
+        """
+        Return a list of working groups in the data release that could be
+        affected by this rule.
+        """
+        return set(data_release._wg_names).intersection(self.apply_to)
+
 
 
 class CombinationRule(Rule):
