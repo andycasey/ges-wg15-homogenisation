@@ -23,6 +23,23 @@ iDR4.ingest(wg_recommended_filenames, validate=True)
 # Create some human-readable rules to deal with (1) stars that match some filter,
 # and (2) multiple measurements for a given star.
 
+
+"""
+remove_skymapper_stars:
+    action: delete_rows
+    apply_to:
+        - wg10
+        - wg12
+        - wg13
+        - wg14
+    filter_rows:
+        - row["OBJECT"].startswith("U_skm_")
+"""
+delete_skymapper_stars = homogenisation.rules.DeleteRowsRule(
+    apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
+    filter_rows="row['OBJECT'].startswith('U_skm_')")
+
+
 raise a
 
 

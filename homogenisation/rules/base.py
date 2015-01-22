@@ -50,7 +50,7 @@ class ModificationRule(Rule):
     """
 
     def _parse_apply_to(self, apply_to):
-        if not isinstance(apply_to, (tuple, list)):
+        if isinstance(apply_to, (tuple, list)):
             return map(str.upper, apply_to)
         return apply_to.upper()
 
