@@ -8,10 +8,11 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 __all__ = ["DeleteRowsRule", "UpdateColumnsRule"]
 
 # Standard library
-import logging
 import json
+import logging
 import re
 import yaml
+from collections import Counter
 
 # Third-party
 import numpy as np
@@ -99,19 +100,20 @@ class UpdateColumnsRule(ModificationRule):
                     raise TypeError("filter_rows must be a callable or string")
 
         self.apply_from = apply_from
-        self.match_by = match_by
+        self.match_by = [match_by] if match_by is not None \
+            and isinstance(match_by, (str, unicode)) else match_by
 
         self._reproducible_repr_ = {
             "action": "update_columns",
             "apply_to": self.apply_to,
             "columns": columns
         }
-        if apply_from is not None:
-            self._reproducible_repr_["apply_from"] = apply_from
-        if match_by is not None:
-            self._reproducible_repr_["match_by"] = match_by
-        if filter_rows is not None:
-            self._reproducible_repr_["filter_rows"] = filter_rows
+        if self.apply_from is not None:
+            self._reproducible_repr_["apply_from"] = self.apply_from
+        if self.match_by is not None:
+            self._reproducible_repr_["match_by"] = self.match_by
+        if self.filter_rows is not None:
+            self._reproducible_repr_["filter_rows"] = self.filter_rows
 
 
     def __str__(self):
@@ -119,9 +121,9 @@ class UpdateColumnsRule(ModificationRule):
 
         num_columns = len(self.columns)
         if num_columns == 1:
-            column_str = "column {}".format(self.columns[0])
+            column_str = "column {}".format(self.columns.keys()[0])
         elif num_columns == 2:
-            column_str = "columns {0} and {1}".format(*self.columns)
+            column_str = "columns {0} and {1}".format(*self.columns.keys())
         else:
             column_str = "{} columns".format(num_columns)
 
@@ -142,6 +144,47 @@ class UpdateColumnsRule(ModificationRule):
     def __repr__(self):
         return "<homogenisation.rule.UpdateColumnsRule at {}>"\
             .format(hex(id(self)))
+
+
+    def _update_data_types(self, data_table, update_rows):
+
+        columns = update_rows[0][1]
+
+        # Let's just check for column names with string data types, as we may 
+        # need to lengthen them.
+        str_columns = [c for c in columns if data_table.dtype[c].kind == "S"]
+
+        # Check the values in the update_rows variable
+        str_lengths = [int(data_table.dtype[c].str[2:]) for c in str_columns]
+
+        update_length = {}
+        for i, row in update_rows:
+            for column, length in zip(str_columns, str_lengths):
+                if len(row[column]) > length:
+                    update_length.setdefault(column, 0)
+                    update_length[column] = \
+                        max([update_length[column], len(row[column])])
+
+        # Any updates?
+        if len(update_length) == 0:
+            logger.debug("No data types need updating.")
+            return data_table
+
+        else:
+            logger.debug("Updating table dtypes: {0}".format(update_length))
+
+            # Update data types
+            old_dtypes = data_table.dtype.descr
+            new_dtypes = []
+            for column, old_dtype in old_dtypes:
+                if column in update_length:
+                    new_dtypes.append(
+                        (column, '|S{}'.format(update_length[column]))
+                    )
+                else:
+                    new_dtypes.append((column, old_dtype))
+
+            return table.Table(data_table._data.astype(new_dtypes))
 
 
     @property
@@ -191,20 +234,24 @@ class UpdateColumnsRule(ModificationRule):
                 apply_from_data = image[apply_from_extension].data
 
             else:
-                apply_from_data = data_release._wg(self.apply_from)
+                apply_from_data = data_release._wg(self.apply_from).data
 
             # Check for uniqueness?
             match_by = self.match_by if self.match_by is not None else ["CNAME"]
             unique_entries = unique_table(apply_from_data, keys=match_by)
             if len(apply_from_data) > len(unique_entries):
-                logger.warn("Joining {0} data with data from {1} but the "
-                    "{1} data has multiple rows for combinations of {2}"\
-                    .format(wg, self.apply_from, ", ".join(match_by)))
+                logger.warn("Matching data from {0} but those data have "
+                    "multiple rows for combinations of {1}".format(
+                        self.apply_from, ", ".join(match_by)))
+
+            logger.debug("Applying from data with {0} rows".format(
+                len(apply_from_data)))
 
         rows = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         exceptions = dict(zip(affected_wgs, [0] * len(affected_wgs)))
         for wg in affected_wgs:
 
+            update_rows = []
             wg_results = data_release._wg(wg)
 
             # Do all the columns exist in this WG?
@@ -280,17 +327,19 @@ class UpdateColumnsRule(ModificationRule):
                                 # Move onto the next column.
                                 continue
 
-                            old_values[column] = wg_results.data[column][i]
+                            old_values[column] = row["TO_{}".format(column)]
                             new_values[column] = value
-                            wg_results.data[column][i] = value
+                            #wg_results.data[column][i] = value
 
+                        # Mark this row to be updated
+                        update_rows.append((i, new_values))
                         logger.debug("Rule {0} has updated row {1} (index {2}) "
                             "in working group {3} of {4}:".format(self, i + 1,
                                 i, wg, data_release))
 
                         for k, old_value in old_values.iteritems():
                             logger.debug("\t{0} updated from {1} to {2}".format(
-                                k, old_value, new_values[k]))
+                                k, str(old_value).strip(), new_values[k]))
 
                         rows[wg] += 1
 
@@ -338,6 +387,16 @@ class UpdateColumnsRule(ModificationRule):
                 joined_table = table.join(to_table, apply_from_data,
                     keys=match_by, table_names=["TO", "FROM"],
                     uniq_col_name="{table_name}_{col_name}")
+
+                logger.debug("Joined table of {0} and {1} has {2} rows".format(
+                    wg, self.apply_from, len(joined_table)))
+
+                if len(joined_table) == 0:
+                    logger.warn("No rows in joined table of {0} and {1}".format(
+                        wg, self.apply_from))
+                    if debug:
+                        raise ValueError("no rows in joined table of {0} and "
+                            "{1}".format(wg, self.apply_from))
 
                 # Work on each row in the joined table
                 for row in joined_table:
@@ -402,20 +461,45 @@ class UpdateColumnsRule(ModificationRule):
 
                             old_values[column] = wg_results.data[column][index]
                             new_values[column] = value
-                            wg_results.data[column][index] = value
+                            #wg_results.data[column][index] = value
 
+                        # Mark this row to be updated
+                        update_rows.append((index, new_values))
                         logger.debug("Rule {0} has updated row {1} (index {2}) "
                             "in working group {3} of {4}:".format(self,
                                 index + 1, index, wg, data_release))
 
                         for k, old_value in old_values.iteritems():
                             logger.debug("\t{0} updated from {1} to {2}".format(
-                                k, old_value, new_values[k]))
+                                k, str(old_value).strip(), new_values[k]))
 
                         rows[wg] += 1
 
                 logger.info("{0} rows updated in {1} results by rule {2}"\
                     .format(rows[wg], wg, self))
+
+            # Check if we need to update any data types.
+            wg_results.data = self._update_data_types(
+                wg_results.data, update_rows)
+
+            # Check for rows being updated multiple times.
+            update_rows_count = Counter([_[0] for _ in update_rows])
+            if np.any(np.array(update_rows_count.values()) > 1):
+                logger.debug("Some rows in {0} are being updated multiple times"
+                    " presumably due to multiple cross-matches with {1}:"\
+                    .format(wg, self.apply_from))
+
+                for i, count in update_rows_count.items():
+                    if 1 >= count: continue
+                    logger.debug("\tRow {0} (index {1}) updated {2} times"\
+                        .format(i + 1, i, count)) 
+
+            # Apply the updates.
+            for index, updates in update_rows:
+                for column, value in updates.items():
+                    wg_results.data[column][index] = value
+
+            logger.debug("Updates applied to {}".format(wg))
 
         return (True, rows, exceptions)
 
