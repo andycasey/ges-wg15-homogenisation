@@ -78,9 +78,9 @@ update_flags_from_wg14:
 propagate_flags = homogenisation.rules.UpdateColumnsRule(
     apply_to=("WG10", "WG11", "WG12", "WG13"),
     columns={
-        "FLAGS": "row['TO_FLAGS'] + '|' + row['FROM_FLAGS']"
+        "TECH": "'|'.join(set(map(str.strip, [row['TO_TECH'], row['FROM_TECH']]))).strip('|')"
     },
-    match_by=["CNAME", "SETUP"],
+    match_by=["CNAME"],
     apply_from="WG14")
 
 
