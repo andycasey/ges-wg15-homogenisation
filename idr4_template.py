@@ -83,6 +83,26 @@ propagate_flags = homogenisation.rules.UpdateColumnsRule(
     match_by=["CNAME"],
     apply_from="WG14")
 
+"""
+rename_target_br81:
+    action: update_columns
+    columns:
+        - TARGET: Br81
+    filter_rows:
+        - row.target.startswith("Br/")
+    apply_to:
+        - wg10
+        - wg11
+        - wg12
+        - wg13
+        - wg14
+"""
+rename_br81_targets = homogenisation.rules.UpdateColumnsRule(
+    apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
+    columns={
+        "TARGET": "Br81"
+    },
+    filter_rows="row['TARGET'].startswith('Br/')")
 
 raise a
 

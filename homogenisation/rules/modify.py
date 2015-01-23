@@ -147,6 +147,10 @@ class UpdateColumnsRule(ModificationRule):
 
 
     def _update_data_types(self, data_table, update_rows):
+        """ Update data table types if necessary. """
+        
+        if len(update_rows) == 0:
+            return data_table
 
         columns = update_rows[0][1]
 
