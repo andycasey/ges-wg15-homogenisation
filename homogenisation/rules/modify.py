@@ -86,9 +86,12 @@ class UpdateColumnsRule(ModificationRule):
         if not isinstance(columns, dict):
             raise TypeError("columns must be a dictionary with column names as "
                 "keys and evaluable strings (or functions) as values")
-        if "CNAME" in map(str.upper, columns.keys()):
-            raise ValueError("cannot update CNAME of rows because matches are "
-                "performed on CNAMEs")
+
+        prohibited_columns = ("CNAME", "__TO_INDEX")
+        for column in prohibited_columns:
+            if column in map(str.upper, columns.keys()):
+                raise ValueError("cannot update {} of rows because matches are "
+                    "performed on {} values".format(column))
 
         self.columns = columns
         self.filter_rows = filter_rows
@@ -148,7 +151,7 @@ class UpdateColumnsRule(ModificationRule):
 
     def _update_data_types(self, data_table, update_rows):
         """ Update data table types if necessary. """
-        
+
         if len(update_rows) == 0:
             return data_table
 

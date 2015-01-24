@@ -61,53 +61,8 @@ class DataRelease(object):
         return self._wg_results[self._wg_names.index(wg)]
 
     
-    def modify_results(self, rule):
-        """
-        Apply a modification rule (e.g., update columns or delete rows) to some
-        or all of the working group results.
-
-        :param rule:
-            The rule to apply to the working group results associated with this
-            data release.
-
-        :type rule:
-            :class:`homogenisation.rule.ModificationRule`
-        """
-
-        if not isinstance(rule, rules.ModificationRule):
-            raise TypeError("results can only be modified with well specified "
-                "constraints, which must be in the form of a homogenisation.rul"
-                "es.ModificationRule object")
-
-        logger.debug("Modifying results in {0} with rule {1}".format(self, rule))
-
-        # See which working groups we need to work on.
-        applies_to_wg_names = set(self._wg_names).intersection(rule.apply_to)
-        logger.debug("Intersection of WG names ({0}) and rule scope ({1}) is: "
-            "{2}".format(self._wg_names, rule.apply_to, 
-                ", ".join(applies_to_wg_names)))
-
-        if len(applies_to) == 0:
-            raise ValueError("found no working group results in ({0}) matching "
-                "the requested scope of the rule ({1})".format(self._wg_names,
-                    rule.apply_to))
-
-        for wg_name in applies_to_wg_names:
-
-            # Apply this rule to the relevant data table.
-            # TODO
-            self._wg_results[self._wg_names.index(wg_name)] = rule.apply(self._wg(wg_name))
-
-        # Return the number of rows affected for each WG?
-        assert False
-
-
-
-    def update_repeated_results(self, rule):
+    def combine(self, working_groups, where=None):
+        # Return a table containing stars common to multiple working groups.
         raise NotImplementedError
 
-
-    def combine(self, rules):
-
-        raise NotImplementedError
-
+    
