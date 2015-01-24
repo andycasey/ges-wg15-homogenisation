@@ -5,7 +5,7 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-__all__ = ["Rule", "CombinationRule", "ModificationRule", "RepeatedStarRule"]
+__all__ = ["Rule", "CombinationRule", "DuplicateStarRule", "ModificationRule"]
 
 # Standard library
 import logging
@@ -45,33 +45,33 @@ class Rule(object):
     def apply(self, data_delease, **kwargs):
         raise RuntimeError("the Rule.apply() function must be overloaded")
 
-
-class RepeatedStarRule(Rule):
-    """
-    Inherits from :class:`Rule` just so we can distinguish when rules can be
-    applied in practice.
-    """
-    pass
-
-
-class ModificationRule(Rule):
-    """
-    Inherits from :class:`Rule` just so we can distinguish when rules can be
-    applied in practice.
-    """
-
     def _parse_apply_to(self, apply_to):
         if isinstance(apply_to, (tuple, list)):
             return map(str.upper, apply_to)
         return [apply_to.upper()]
-
-
+    
     def _affected_wgs(self, data_release):
         """
         Return a list of working groups in the data release that could be
         affected by this rule.
         """
         return set(data_release._wg_names).intersection(self.apply_to)
+
+class DuplicateStarRule(Rule):
+    """
+    Inherits from :class:`Rule` just so we can distinguish when rules can be
+    applied in practice.
+    """
+
+    pass
+
+class ModificationRule(Rule):
+    """
+    Inherits from :class:`Rule` just so we can distinguish when rules can be
+    applied in practice.
+    """
+    pass
+    
 
 
 class CombinationRule(Rule):

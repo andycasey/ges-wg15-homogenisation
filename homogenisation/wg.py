@@ -16,6 +16,9 @@ import re
 from astropy.io import fits
 from astropy.table import Table
 
+# Module-specific
+from . import rules
+
 # Create a logger.
 logger = logging.getLogger(__name__)
 
@@ -73,7 +76,6 @@ class RecommendedResults(object):
     @classmethod
     def open(cls, *args, **kwargs):
         return cls.from_filename(*args, **kwargs)
-
 
     def validate(self):
         raise NotImplementedError("no WG file validation rules implemented yet")
