@@ -10,6 +10,9 @@ __all__ = ["DataRelease"]
 # Standard library
 import logging
 
+# Third-party
+from astropy.table import Table
+
 # Module-specific
 from . import (rules, wg)
 
@@ -81,7 +84,7 @@ class DataRelease(object):
         return rule.apply(self)
 
 
-    def select(self, working_groups=None, filter_rows=None):
+    def select(self, working_groups=None, filter_rows=None, **kwargs):
         """
         Combine data tables from multiple working groups.
 
@@ -92,24 +95,50 @@ class DataRelease(object):
             list of str
         """
 
+        debug = kwargs.pop("debug", False)
         if working_groups is None:
             working_groups = [] + self._wg_names
 
         elif not isinstance(working_groups, (tuple, list)):
             raise TypeError("working groups must be a tuple or list of strings")
 
+        env = {}
+        env.update(rules.base.Rule._default_env)
+        env.update(kwargs.pop("env", {}))
+
+        selected_rows = []        
         working_groups = map(str.upper, working_groups)
-
-
         for working_group in working_groups:
 
             # Get the data matching the filter.
-            None
+            if filter_rows is not None and not hasattr(filter_rows, "__call__"):
+                try:
+                    filter_rows = str(filter_rows)
+                except (TypeError, ValueError):
+                    raise TypeError("filter_rows must be a callable or string")
 
-        # Combine the data together into a table.
+            for i, row in enumerate(self._wg(working_group).data):
 
+                if filter_rows is None:
+                    selected_rows.append(row)
+                else:
+                    select_row = False 
+                    try:
+                        env["row"] = row
+                        select_row = eval(filter_rows, env)
+                    except:
+                        logger.exception("Exception parsing filter function for "
+                            "select on row {0} (index {1}) in working group {2}:"
+                            .format(i + 1, i, working_group))
+                        if debug:
+                            raise
 
-        raise NotImplementedError
+                    del env["row"]
+                    if select_row:
+                        selected_rows.append(row)
 
+        # Combine to make a table.
+        return Table(rows=selected_rows,
+            names=self._wg(working_groups[0]).data.dtype.names)
         
     
