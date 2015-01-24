@@ -36,6 +36,13 @@ class CreateDataRelease(unittest.TestCase):
         self.assertRaises(TypeError, release.DataRelease, False)
         self.assertRaises(TypeError, release.DataRelease, True)
 
+    def test_float_supplied_as_version_to_data_release(self):
+        self.assertRaises(TypeError, release.DataRelease, 1.0)
+        self.assertRaises(TypeError, release.DataRelease, -1.0)
+
+    def test_int_supplied_as_version_to_data_release(self):
+        self.assertRaises(TypeError, release.DataRelease, 5)
+
 
 class BadIngestToDataRelease(unittest.TestCase):
 
