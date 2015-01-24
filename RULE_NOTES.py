@@ -145,7 +145,7 @@ remove_skymapper_stars:
         - wg13
         - wg14
     filter_rows:
-        - row.target.startswith("SkM")
+        - row["OBJECT"].startswith("U_skm_")
 """
 
 # Update stars in a table that are also in other tables?
@@ -169,6 +169,9 @@ apply_feh_correction_wg10_setup:
 # Calculate offsets between VRADs
 # Output some statistics: number of UVES/GIRAFFE spectra. Number of UVES/GIRAFFE
 #   with good measurements, stars in common between WGs
+
+# CONSOLIDATED OTHER:
+# Create tables containing stars common to multiple WGs, allowing some filter.
 
 
 
