@@ -145,7 +145,11 @@ remove_skymapper_stars:
         - wg13
         - wg14
     filter_rows:
+<<<<<<< HEAD
         - row["OBJECT"].startswith("U_skm_")
+=======
+        - row.target.startswith("SkM")
+>>>>>>> 81549769b8af501b512126bbd2303d8ad33c53eb
 """
 
 # Update stars in a table that are also in other tables?
@@ -170,9 +174,12 @@ apply_feh_correction_wg10_setup:
 # Output some statistics: number of UVES/GIRAFFE spectra. Number of UVES/GIRAFFE
 #   with good measurements, stars in common between WGs
 
+<<<<<<< HEAD
 # CONSOLIDATED OTHER:
 # Create tables containing stars common to multiple WGs, allowing some filter.
 
+=======
+>>>>>>> 81549769b8af501b512126bbd2303d8ad33c53eb
 
 
 class Rule(object):
