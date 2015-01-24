@@ -36,6 +36,14 @@ class RecommendedResults(object):
             filename=kwargs.pop("filename", None),
             header=meta.get("NODE1", None))
 
+        # Make some column checks.
+        if "__TO_INDEX" in self.data.dtype.names:
+            raise ValueError("{0} data cannot have a __TO_INDEX column because "
+                "it is prohibited".format(self.wg))
+        if "CNAME" not in self.data.dtype.names:
+            logger.warn("No CNAME found in {} data".format(self.wg))
+
+
     @classmethod
     def from_filename(cls, filename, extension=1, **kwargs):
         """

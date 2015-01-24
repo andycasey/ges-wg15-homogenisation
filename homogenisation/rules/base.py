@@ -5,7 +5,7 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-__all__ = ["Rule", "CombinationRule", "ModificationRule"]
+__all__ = ["Rule", "CombinationRule", "ModificationRule", "RepeatedStarRule"]
 
 # Standard library
 import logging
@@ -46,6 +46,12 @@ class Rule(object):
         raise RuntimeError("the Rule.apply() function must be overloaded")
 
 
+class RepeatedStarRule(Rule):
+    """
+    Inherits from :class:`Rule` just so we can distinguish when rules can be
+    applied in practice.
+    """
+    pass
 
 
 class ModificationRule(Rule):
@@ -68,11 +74,9 @@ class ModificationRule(Rule):
         return set(data_release._wg_names).intersection(self.apply_to)
 
 
-
 class CombinationRule(Rule):
     """
     Inherits from :class:`Rule` just so we can distinguish when rules can be
     applied in practice.
     """
     pass
-
