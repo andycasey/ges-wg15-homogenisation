@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 class DataRelease(object):
 
     def __init__(self, version):
+
+        if not isinstance(version, (unicode, str)):
+            raise TypeError("version must be a string or unicode")
+            
         logger.debug("Created DataRelease object with version {}".format(version))
         self.version = version
 

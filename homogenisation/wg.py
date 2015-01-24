@@ -33,8 +33,8 @@ class RecommendedResults(object):
         self.meta = meta
         self.wg = _assign_working_group(
             supplied=kwargs.pop("wg", None),
-            filename=kwargs.pop("filename", None),
-            header=meta.get("NODE1", None))
+            header=meta.get("NODE1", None),
+            filename=kwargs.pop("filename", None))
 
         # Make some column checks.
         if "__TO_INDEX" in self.data.dtype.names:
@@ -84,7 +84,7 @@ class RecommendedResults(object):
 
 
 
-def _assign_working_group(supplied, filename, header):
+def _assign_working_group(supplied, header, filename):
     """
     Assign a working group from the given information supplied by the user, the
     filename, and the image header information.
