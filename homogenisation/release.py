@@ -64,9 +64,52 @@ class DataRelease(object):
         """
         return self._wg_results[self._wg_names.index(wg)]
 
-    
-    def combine(self, working_groups, where=None):
-        # Return a table containing stars common to multiple working groups.
+
+    def apply_rule(self, rule):
+        """
+        Apply a rule to this data release.
+
+        :param rule:
+            The rule to apply.
+
+        :type rule:
+            :class:`homogenisation.rules.Rule`
+        """
+        if not isinstance(rule, rules.Rule):
+            raise TypeError("must be classed from homogenisation.rules.Rule")
+
+        return rule.apply(self)
+
+
+    def select(self, working_groups=None, filter_rows=None):
+        """
+        Combine data tables from multiple working groups.
+
+        :param working_groups:
+            The working groups.
+
+        :type working_groups:
+            list of str
+        """
+
+        if working_groups is None:
+            working_groups = [] + self._wg_names
+
+        elif not isinstance(working_groups, (tuple, list)):
+            raise TypeError("working groups must be a tuple or list of strings")
+
+        working_groups = map(str.upper, working_groups)
+
+
+        for working_group in working_groups:
+
+            # Get the data matching the filter.
+            None
+
+        # Combine the data together into a table.
+
+
         raise NotImplementedError
 
+        
     

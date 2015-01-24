@@ -20,9 +20,11 @@ path = "/Users/arc/research/ges/homogenisation/data/*_WG??_Recommended.fits"
 wg_recommended_filenames = glob(path)
 iDR4.ingest(wg_recommended_filenames, validate=True)
 
+
+
+
 # Create some human-readable rules to deal with (1) stars that match some filter,
 # and (2) multiple measurements for a given star.
-
 
 """
 remove_skymapper_stars:
@@ -103,6 +105,9 @@ rename_br81_targets = homogenisation.rules.UpdateColumnsRule(
         "TARGET": "Br81"
     },
     filter_rows="row['TARGET'].startswith('Br/')")
+
+remove_benchmarks = homogenisation.rules.DeleteDuplicateRowsRule(
+    apply_to=("wg10"))
 
 raise a
 
