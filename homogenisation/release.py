@@ -31,6 +31,17 @@ class DataRelease(object):
         self.version = version
 
 
+    def __str__(self):
+        _ = "with results from {0}".format(", ".join(self._wg_names)) \
+            if hasattr(self, "_wg_names") else "no WG results"
+        return "<homogenisation.DataRelease {0}, {1}>".format(self.version, _)
+
+
+    def __repr__(self):
+        return "<homogenisation.DataRelease {0} at {1}>".format(self.version, 
+            hex(id(self)))
+
+
     def ingest(self, filenames, validate=True):
         """
         Ingest recommended results files from the Working Group leads.
@@ -76,10 +87,11 @@ class DataRelease(object):
             The rule to apply.
 
         :type rule:
-            :class:`homogenisation.rules.Rule`
+            :class:`homogenisation.rules.base.Rule`
         """
-        if not isinstance(rule, rules.Rule):
-            raise TypeError("must be classed from homogenisation.rules.Rule")
+        if not isinstance(rule, rules.base.Rule):
+            raise TypeError("the rule must be sub-classed from homogenisation."
+                "rules.base.Rule")
 
         return rule.apply(self)
 
@@ -138,6 +150,9 @@ class DataRelease(object):
                         selected_rows.append(row)
 
         # Combine to make a table.
+        if len(selected_rows) == 0:
+            return []
+
         return Table(rows=selected_rows,
             names=self._wg(working_groups[0]).data.dtype.names)
         
