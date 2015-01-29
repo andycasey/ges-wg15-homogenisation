@@ -4,7 +4,6 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-from .base import (Rule, CombinationRule, ModificationRule, parse)
+from .base import *
 from .modify import *
 from .groups import *
-#from .combine import *

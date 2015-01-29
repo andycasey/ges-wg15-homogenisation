@@ -5,12 +5,13 @@
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-__all__ = ["Rule", "CombinationRule", "DuplicateStarRule", "ModificationRule"]
+__all__ = ["parse_rule", "parse_rules", "Rule", "CombinationRule",
+    "DuplicateStarRule", "ModificationRule"]
 
 # Standard library
 import logging
-import json
 import yaml
+from json import dumps
 
 # Third-party.
 import numpy as np
@@ -18,7 +19,7 @@ import numpy as np
 # Create a logger.
 logger = logging.getLogger(__name__)
 
-def parse(encoded_rule):
+def parse_rule(encoded_rule):
     """
     Create a rule object by parsing an encoded string.
 
@@ -29,49 +30,64 @@ def parse(encoded_rule):
         dict
     """
 
-    # update_columns, delete_rows
-    # 
-
-    # possible actions:
-    # update_columns, delete_rows
-    # update_columns can take columns as a list of dicts (e.g. internal update) or
-    # a list of columns where a apply_from + match_by exists.
-    # NOTE: A RULE SHOULD NEVER BE ALLOWED TO CHANGE THE CNAME
-
-    # requirement for delete_rows action:
-    # needs apply_to, filter_rows
-
-    # requirement for update_columns:
-    # columns, apply_to, (apply_from + match_by) OR (filter_rows)
-
-    # ALL so far need: action, apply_to.
-
     if not isinstance(encoded_rule, dict):
         raise TypeError("encoded rule is expected to be a dictionary")
-
     if "action" not in encoded_rule:
         raise ValueError("encoded rule does not contain an action command")
-
-    possible_actions = ("delete_duplicate_rows", "delete_rows", "update_columns")
-    action = encoded_rule.action.lower()
-    if action not in possible_actions:
-        raise ValueError("Action '{0}' is not recognised. Available actions are"
-            " {1}".format(", ".join(possible_actions)))
-
     if "apply_to" not in encoded_rule:
         raise ValueError("encoded rule does not contain an apply_to command")
 
+    encoded_rule = encoded_rule.copy()
+    action = encoded_rule["action"].lower()
+    del encoded_rule["action"]
+
     # OK, now look for required parameters based on the actions
-    if action == "delete_rows":
-        # Here we just need a filter_rows, which is required.
-        if "filter_rows" not in encoded_rule:
-            raise ValueError("encoded rules to delete rows require information "
-                "about the filter_rows")
+    from modify import DeleteRowsRule, UpdateColumnsRule
+    from groups import DeleteDuplicateRowsRule, UpdateDuplicateRowsRule
+    classes = {
+        "delete_rows": DeleteRowsRule,
+        "update_columns": UpdateColumnsRule,
+        "delete_duplicate_rows": DeleteDuplicateRowsRule,
+        "update_duplicate_rows": UpdateDuplicateRowsRule
+    }
+    if action not in classes.keys():
+        raise ValueError("Action '{0}' is not recognised. Available actions are"
+            " {1}".format(", ".join(classes.keys())))
+    _class = classes[action]   
+    return _class(**encoded_rule)
 
-    elif action == "update_columns":
-        None
 
-    raise NotImplementedError("soon.jpg")
+def parse_rules(fp, n=36):
+    """
+    Create a list of rules from file contents.
+
+    :param fp:
+        A file pointer.
+    """
+
+    indent = n * " "
+    rules = []
+    contents = yaml.load(fp)
+    if isinstance(contents, dict):
+        logger.warn("File contents returned a dictionary: rules may not be "
+            "applied in the order you expect!")
+        for rule_name, encoded_rule in contents.items():
+            rule = parse_rule(encoded_rule)
+            rules.append(rule)
+            logger.debug("Created rule {0} ({1}) from contents:\n{2}\n".format(
+                rule_name, rule, 
+                indent + dumps(encoded_rule, indent=2).replace("\n", "\n" + indent)))
+    else:
+        for each in contents:
+            rule_name = each.keys()[0]
+            encoded_rule = each[rule_name]
+            
+            rule = parse_rule(encoded_rule)
+            rules.append(rule)
+            logger.debug("Created rule {0} ({1}) from contents:\n{2}\n".format(
+                rule_name, rule, 
+                indent + dumps(encoded_rule, indent=2).replace("\n", "\n" + indent)))
+    return rules
 
 
 class Rule(object):
@@ -91,7 +107,7 @@ class Rule(object):
     @property
     def json(self):
         """ Return the rule in JSON format."""
-        return json.dumps(self._reproducible_repr_, indent=2)
+        return dumps(self._reproducible_repr_, indent=2)
         
     @property
     def yaml(self):
