@@ -133,7 +133,7 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
             if self.sort_by is not None:
                 logger.debug("Sorting {0} data by {1}".format(
                     wg, ", ".join(self.sort_by)))
-                wg_results = wg_results.sort(self.sort_by)
+                wg_results.sort(self.sort_by)
 
                 if self.order == "desc":
                     logger.debug("Reversing sort in {} because order is 'desc'"\
@@ -144,8 +144,8 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
             num_rows_before = len(wg_results)
             wg_results = wg_results.group_by(self.group_by)
 
-            logger.debug("There are {0} groups by {1}".format(
-                len(wg_results.groups), ", ".join(self.group_by)))
+            logger.debug("There are {0} groups by {1} in {2}".format(
+                len(wg_results.groups), ", ".join(self.group_by), wg))
 
             # Aggregate the unique rows.
             wg_results = wg_results[wg_results.groups.indices[:-1]]
@@ -155,7 +155,9 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
             num_rows_after = len(wg_results)
             logger.info("{0} duplicate rows removed in {1} by {2}".format(
                 num_rows_before - num_rows_after, wg, self))
+            rows[wg] = num_rows_before - num_rows_after
+            # [TODO] hard to identify exceptions here...
         
-        return data_release
+        return (True, rows, exceptions)
 
 

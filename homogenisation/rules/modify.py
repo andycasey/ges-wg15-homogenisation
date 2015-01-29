@@ -267,7 +267,7 @@ class UpdateColumnsRule(ModificationRule):
                     raise ValueError("column name {0} does not exist in the {1}"
                         " table, so rule {2} cannot be applied".format(column,
                             wg, self))
-            logger.debug("All columns for rule {0} appear in WG {1}".format(
+            logger.debug("All columns for rule {0} appear in {1}".format(
                 self, wg))
 
             # If we don't have to match to an external source:
@@ -321,20 +321,27 @@ class UpdateColumnsRule(ModificationRule):
                                     value = eval(str(evaluable), env)
                                     del env["row"]
                             except:
-                                logger.exception("Exception evaluating column "
-                                    "value for {0} from {1} in rule {2} on row "
-                                    "{3} (index {4}) in working group {5} of "
-                                    "{6}:".format(
-                                        column, evaluable, self, i + 1, i, wg,
-                                        data_release))
-                                exceptions[wg] += 1
-                                if debug:
-                                    raise
+                                # If we did except, we should check to see if 
+                                # this column data type is a string. If it's a
+                                # string we should just set the value as is.
+                                if wg_results.data[column].dtype.str[:2] == "|S":
+                                    value = evaluable
 
-                                # Move onto the next column.
-                                continue
+                                else:
+                                    logger.exception("Exception evaluating colu"
+                                        "mn value for {0} from {1} in rule {2} "
+                                        "on row {3} (index {4}) in working grou"
+                                        "p {5} of {6}:".format(column,
+                                            evaluable, self, i + 1, i, wg,
+                                            data_release))
+                                    exceptions[wg] += 1
+                                    if debug:
+                                        raise
 
-                            old_values[column] = row["TO_{}".format(column)]
+                                    # Move onto the next column.
+                                    continue
+
+                            old_values[column] = row[column]
                             new_values[column] = value
                             #wg_results.data[column][i] = value
 
@@ -453,18 +460,25 @@ class UpdateColumnsRule(ModificationRule):
                                     value = eval(str(evaluable), env)
                                     del env["row"]
                             except:
-                                logger.exception("Exception evaluating column "
-                                    "value for {0} from {1} in rule {2} on row "
-                                    "{3} (index {4}) in working group {5} of "
-                                    "{6}:".format(
-                                        column, evaluable, self, index + 1,
-                                        index, wg, data_release))
-                                exceptions[wg] += 1
-                                if debug:
-                                    raise
+                                # If we did except, we should check to see if 
+                                # this column data type is a string. If it's a
+                                # string we should just set the value as is.
+                                if wg_results.data[column].dtype.str[:2] == "|S":
+                                    value = evaluable
 
-                                # Move onto the next column.
-                                continue
+                                else:
+                                    logger.exception("Exception evaluating colu"
+                                        "mn value for {0} from {1} in rule {2} "
+                                        "on row {3} (index {4}) in working grou"
+                                        "p {5} of {6}:".format(
+                                            column, evaluable, self, index + 1,
+                                            index, wg, data_release))
+                                    exceptions[wg] += 1
+                                    if debug:
+                                        raise
+
+                                    # Move onto the next column.
+                                    continue
 
                             old_values[column] = wg_results.data[column][index]
                             new_values[column] = value
