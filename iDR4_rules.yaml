@@ -1,0 +1,75 @@
+# WG15 Homogenisation rules for iDR4 (Draft)
+# Patrick François, Anna Hourihane, Laura Magrini, Clare Worley, Andy Casey
+
+# Remove the SkyMapper stars from WG11
+- remove_skymapper_stars:
+    action: delete_rows
+    apply_to: WG11
+    filter_rows: row["OBJECT"].startswith("U_skm_")
+
+# Strip trailing spaces in the FILENAME so that we can match WG14 to other WGs
+- strip_spaces_in_filename:
+    action: update_columns
+    columns:
+        FILENAME: 'row["FILENAME"].strip()'
+    apply_to:
+        - WG10
+        - WG11
+        - WG12
+        - WG13
+        - WG14
+
+# Propagate the TECH entries from WG14 to all other WGs by FILENAME
+- propagate_tech_entries_from_WG14:
+    action: update_columns
+    columns:
+        TECH:  "'|'.join(set(map(str.strip, [row['TO_TECH'], row['FROM_TECH']]))).strip('|')"
+    match_by: FILENAME
+    apply_from: WG14
+    apply_to:
+        - WG10
+        - WG11
+        - WG12
+        - WG13
+
+# Propagate the TECH entries from WG14 to all other WGs by CNAME
+- propagate_tech_entries_from_WG14:
+    action: update_columns
+    columns:
+        TECH:  "'|'.join(set(map(str.strip, [row['TO_TECH'], row['FROM_TECH']]))).strip('|')"
+    match_by: CNAME
+    apply_from: WG14
+    apply_to:
+        - WG10
+        - WG11
+        - WG12
+        - WG13
+
+# Rename Br81 targets.
+# [TODO] We may not actually need this rule anymore.
+- rename_target_br81:
+    action: update_columns
+    columns:
+        TARGET: Br81
+    filter_rows: 'row["TARGET"].startswith("Br/")'
+    apply_to:
+        - WG10
+        - WG11
+        - WG12
+        - WG13
+        - WG14
+
+# Delete the benchmarks from WG10, WG12, WG13, WG14
+- delete_benchmarks_from_wg10+12+13+14:
+    action: delete_rows
+    apply_to:
+        - WG10
+        - WG12
+        - WG13
+        - WG14
+    # Here we strip trailing spaces from the 'TARGET' before matching.
+    filter_rows: 'row["GES_FLD"] in ("Benchmarks_BordeauxLib3", "18_Sco", "SUN")'
+
+# [TODO] Decide what to do about the benchmark parameters in each WG.
+
+
