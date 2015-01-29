@@ -1,0 +1,52 @@
+PLOTS REQUIRED FOR EACH WORKING GROUP:
+
+# What are the values for the Sun and 18 Sco?
+- Box plots for each Node (x-axis) showing Temperature points for the Sun
+- Box plots for each Node (x-axis) showing logg measurements for the Sun
+- Box plots for each node (x-axis) showing [Fe/H] measurements for the Sun
+- Box plots for each node (x-axis) showing Temperature measurements for 18 Sco
+- Box plots for each node (x-axis) showing logg measurements for 18 Sco
+- Box plots for each node (x-axis) showing [Fe/H] measurements for 18 Sco 
+
+# Are the results different depending on the setup?
+# Use all stars that are observed with multiple setups.
+- Temperature vs (diff in temperature between setups, each combination in it's own axes) -- here all nodes could be put on the same plot.
+- Surface gravity vs (diff in surface gravity between setups, each combination in it's own axes) -- here all nodes could be put on the same plot
+- Metallicity vs (diff in metallicity between setups, each combination in it's own axes) -- here all nodes could be put on the same plot
+- [alpha/M] ???
+
+# Is there any systematic bias in a parameter for any node? [use all nodes on the same plot]
+# Note: Fit a line with linear regression, display median, etc all on plot.
+- Temperature vs (temperature - reference_temperature) for all benchmark stars
+- logg vs (logg - reference_logg) for all benchmark stars
+- [Fe/H] vs ([Fe/H] - reference_feh) for all benchmark stars
+
+# Is there any systematic bias with temperature for any node? [use all nodes on the same plot]
+- Temperature vs (logg - reference_logg) for all benchmark stars
+- Temperature vs ([Fe/H] - reference_feh) for all benchmark stars
+
+# How do all the node values compare against each other?
+- Make a corner plot for stars common to all nodes in temperature
+- Make a corner plot for stars common to all nodes in logg
+- Make a corner plot for stars common to all nodes in [Fe/H]
+- Make a corner plot for stars common to all nodes in temperature, using some highlighting of TECH flags
+- Make a corner plot for stars common to all nodes in logg, using some highlighting of TECH flags
+- Make a corner plot for stars common to all nodes in [Fe/H], using some highlighting of TECH flags
+
+# How does the dispersion amongst nodes change as a function of S/N?
+- Find stars common between multiple nodes. Calculate the std. dev. of Temperature and plot it as a function of S/N
+- Find stars common between multiple nodes. Calculate the std. dev. of logg and plot is as a function of S/N
+- Find stars common between multiple nodes. Calculate the std. dev. of [Fe/H] and plot it as a function of S/N
+
+# How does the [Fe/H] change as a function of temperature, or surface gravity, for stars in a cluster.
+- Plot [Fe/H] (y) vs Teff (x) for all nodes for all stars in M67
+- Plot [Fe/H] (y) vs logg (x) for all nodes for all stars in M67
+- Plot Teff (x) vs [Fe/H] (y) for all nodes for all stars in NGC 2243
+- Plot Teff (x) vs logg (y) for all nodes for all stars in NGC 2243
+
+# Any difference in [Fe/H] for cluster stars observed in different setup?
+- Plot difference between HR 9 and HR 15N for all stars in some open cluster (WHICH ONE?)
+
+# What are the node-to-node biases for stars in a Globular cluster?
+- Plot [Fe/H] vs Teff for all stars within a single globular cluster
+- Plot [Fe/H] vs logg for all stars within a single globular cluster
