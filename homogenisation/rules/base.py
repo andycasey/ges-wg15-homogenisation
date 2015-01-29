@@ -18,6 +18,61 @@ import numpy as np
 # Create a logger.
 logger = logging.getLogger(__name__)
 
+def parse(encoded_rule):
+    """
+    Create a rule object by parsing an encoded string.
+
+    :param encoded_rule:
+        The rule!
+
+    :type encoded_rule:
+        dict
+    """
+
+    # update_columns, delete_rows
+    # 
+
+    # possible actions:
+    # update_columns, delete_rows
+    # update_columns can take columns as a list of dicts (e.g. internal update) or
+    # a list of columns where a apply_from + match_by exists.
+    # NOTE: A RULE SHOULD NEVER BE ALLOWED TO CHANGE THE CNAME
+
+    # requirement for delete_rows action:
+    # needs apply_to, filter_rows
+
+    # requirement for update_columns:
+    # columns, apply_to, (apply_from + match_by) OR (filter_rows)
+
+    # ALL so far need: action, apply_to.
+
+    if not isinstance(encoded_rule, dict):
+        raise TypeError("encoded rule is expected to be a dictionary")
+
+    if "action" not in encoded_rule:
+        raise ValueError("encoded rule does not contain an action command")
+
+    possible_actions = ("delete_duplicate_rows", "delete_rows", "update_columns")
+    action = encoded_rule.action.lower()
+    if action not in possible_actions:
+        raise ValueError("Action '{0}' is not recognised. Available actions are"
+            " {1}".format(", ".join(possible_actions)))
+
+    if "apply_to" not in encoded_rule:
+        raise ValueError("encoded rule does not contain an apply_to command")
+
+    # OK, now look for required parameters based on the actions
+    if action == "delete_rows":
+        # Here we just need a filter_rows, which is required.
+        if "filter_rows" not in encoded_rule:
+            raise ValueError("encoded rules to delete rows require information "
+                "about the filter_rows")
+
+    elif action == "update_columns":
+        None
+
+    raise NotImplementedError("soon.jpg")
+
 
 class Rule(object):
     """ A base class for a Rule to apply to a data release. """
@@ -29,7 +84,8 @@ class Rule(object):
         #"__file__": None,
         #"__builtins__": None,
         # Some numpy functions
-        "isfinite": np.isfinite
+        "isfinite": np.isfinite,
+        "np": np
     }
 
     @property

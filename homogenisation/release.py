@@ -89,9 +89,9 @@ class DataRelease(object):
         :type rule:
             :class:`homogenisation.rules.base.Rule`
         """
-        if not isinstance(rule, rules.base.Rule):
+        if not isinstance(rule, rules.Rule):
             raise TypeError("the rule must be sub-classed from homogenisation."
-                "rules.base.Rule")
+                "rules.Rule")
 
         return rule.apply(self)
 
