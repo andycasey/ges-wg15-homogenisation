@@ -104,10 +104,13 @@ rename_br81_targets = homogenisation.rules.UpdateColumnsRule(
     columns={
         "TARGET": "Br81"
     },
-    filter_rows="row['TARGET'].startswith('Br/')")
+    filter_rows="row['TARGET'].startswith('Br81/')")
 
 remove_benchmarks = homogenisation.rules.DeleteDuplicateRowsRule(
-    apply_to=("wg10"))
+    group_by=["CNAME", "SETUP"],
+    sort_by=["SNR"],
+    order="desc",
+    apply_to=("wg11", ))
 
 raise a
 

@@ -96,9 +96,16 @@ class DataRelease(object):
         return rule.apply(self)
 
 
+    def combine(self, **kwargs):
+        """
+        Combine data from all the working groups.
+        """
+        return self.select(working_groups=self._wg_names, **kwargs)
+
+
     def select(self, working_groups=None, filter_rows=None, **kwargs):
         """
-        Combine data tables from multiple working groups.
+        Select rows from tables in multiple working groups.
 
         :param working_groups:
             The working groups.
@@ -111,15 +118,22 @@ class DataRelease(object):
         if working_groups is None:
             working_groups = [] + self._wg_names
 
-        elif not isinstance(working_groups, (tuple, list)):
-            raise TypeError("working groups must be a tuple or list of strings")
-
+        if isinstance(working_groups, (str, unicode)):
+            working_groups = [working_groups]
+        working_groups = map(str.upper, working_groups)
+        
         env = {}
         env.update(rules.base.Rule._default_env)
         env.update(kwargs.pop("env", {}))
 
         selected_rows = []        
-        working_groups = map(str.upper, working_groups)
+        # This is the quick case:
+        if len(working_groups) == 1 and filter_rows is None and len(kwargs) == 0:
+            if working_groups[0] not in self._wg_names:
+                return []
+            else:
+                return self._wg(working_groups[0]).data.copy()
+
         for working_group in working_groups:
 
             # Get the data matching the filter.
