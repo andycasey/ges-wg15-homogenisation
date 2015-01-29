@@ -99,18 +99,28 @@ rename_target_br81:
         - wg13
         - wg14
 """
-rename_br81_targets = homogenisation.rules.UpdateColumnsRule(
+rename_solar_targets = homogenisation.rules.UpdateColumnsRule(
     apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
     columns={
-        "TARGET": "Br81"
+        "TARGET": "DA SUN"
     },
-    filter_rows="row['TARGET'].startswith('Br81/')")
+    filter_rows="row['TARGET'].startswith('Solar')")
 
 remove_benchmarks = homogenisation.rules.DeleteDuplicateRowsRule(
-    group_by=["CNAME", "SETUP"],
+    group_by=["CNAME"],
     sort_by=["SNR"],
     order="desc",
     apply_to=("wg11", ))
+
+median_benchmarks = homogenisation.rules.UpdateDuplicateRowsRule(
+    group_by=["CNAME"],
+    apply_to=["wg10", "wg11", "wg12", "wg13"],
+    columns={
+        "TEFF": "np.nanmedian(rows['TEFF'])", # Sigma clipping?
+        # Complex line because if we only have one finite teff measurement, 
+        # we should just take that value.
+        "e_TEFF": "np.nanstd(rows['TEFF']) if np.isfinite(rows['TEFF']).sum() > 1 else rows['E_TEFF'][np.isfinite(rows['E_TEFF'])]",
+    })
 
 raise a
 
