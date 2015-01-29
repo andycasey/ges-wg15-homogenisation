@@ -1,16 +1,17 @@
 # coding: utf-8
 
-""" Template script for the Gaia-ESO Survey iDR4 homogenisation. """
+""" Template script for the Gaia-ESO Survey WG15 iDR4 homogenisation. """
 
 from __future__ import division, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-# Standard library.
 from glob import glob
-
 import homogenisation
 
+# Load the rules.
+with open("iDR4_rules.yaml") as fp:
+    rules = homogenisation.rules.parse_rules(fp)
 
 # Create a data release instance.
 iDR4 = homogenisation.DataRelease(version="iDR4")
@@ -21,115 +22,24 @@ wg_recommended_filenames = glob(path)
 iDR4.ingest(wg_recommended_filenames, validate=True)
 
 
+# Apply the easy rules.
+for rule in rules:
+    affected = iDR4.apply_rule(rule)
 
+# There may be combination rules, which are more difficult to put into a single
+# file:
 
-# Create some human-readable rules to deal with (1) stars that match some filter,
-# and (2) multiple measurements for a given star.
+# Delete stars (by CNAME) in WG10 that are in WG11
+delete_from_wg10_if_in_wg11 = homogenisation.rules.DeleteRowsRule(
+    apply_to="WG10", filter_rows="row['CNAME'] in WG11")
+delete_from_wg10_if_in_wg11._default_env["WG11"] = iDR4.select("WG11")["CNAME"]
 
-"""
-remove_skymapper_stars:
-    action: delete_rows
-    apply_to:
-        - wg10
-        - wg12
-        - wg13
-        - wg14
-    filter_rows:
-        - row["OBJECT"].startswith("U_skm_")
-"""
-delete_skymapper_stars = homogenisation.rules.DeleteRowsRule(
-    apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
-    filter_rows="row['OBJECT'].startswith('U_skm_')")
+# Join all the rules together.
+combination_rules = (delete_from_wg10_if_in_wg11, )
 
-"""
-update_velocity_offset1:
-    action: update_columns
-    columns:
-        - VRAD: row.vrad + 0.33
-        - VRAD_OFFSET: 0.33
-        - VRAD_OFFSETSOURCE: SOMEWHERE
-    filter_rows:
-        - some_filter
-    apply_to: wg10
-"""
-update_velocity_offset = homogenisation.rules.UpdateColumnsRule(
-    apply_to="WG10", columns={
-        "VRAD": "row['VEL'] + 0.33",
-        "E_VRAD": 1
-    },
-    filter_rows="isfinite(row['VEL'])")
+# Apply the combination rules.
+for rule in combination_rules:
+    affected = iDR4.apply_rule(rule)
 
-
-# Propagate all WG14 flags to the other WG files. Join w/ existing flags?
-"""
-update_flags_from_wg14:
-    action: update_columns
-    columns:
-        - FLAGS: row_from.flags + '|' + row_to.flags
-    match_by:
-        - CNAME
-        - SETUP
-    apply_from: wg14
-    apply_to:
-        - wg10
-        - wg11
-        - wg12
-        - wg13
-        - wg14 
-"""
-propagate_flags = homogenisation.rules.UpdateColumnsRule(
-    apply_to=("WG10", "WG11", "WG12", "WG13"),
-    columns={
-        "TECH": "'|'.join(set(map(str.strip, [row['TO_TECH'], row['FROM_TECH']]))).strip('|')"
-    },
-    match_by=["CNAME"],
-    apply_from="WG14")
-
-"""
-rename_target_br81:
-    action: update_columns
-    columns:
-        - TARGET: Br81
-    filter_rows:
-        - row.target.startswith("Br/")
-    apply_to:
-        - wg10
-        - wg11
-        - wg12
-        - wg13
-        - wg14
-"""
-rename_solar_targets = homogenisation.rules.UpdateColumnsRule(
-    apply_to=("wg10", "wg11", "wg12", "wg13", "wg14"),
-    columns={
-        "TARGET": "DA SUN"
-    },
-    filter_rows="row['TARGET'].startswith('Solar')")
-
-remove_benchmarks = homogenisation.rules.DeleteDuplicateRowsRule(
-    group_by=["CNAME"],
-    sort_by=["SNR"],
-    order="desc",
-    apply_to=("wg11", ))
-
-median_benchmarks = homogenisation.rules.UpdateDuplicateRowsRule(
-    group_by=["CNAME"],
-    apply_to=["wg10", "wg11", "wg12", "wg13"],
-    columns={
-        "TEFF": "np.nanmedian(rows['TEFF'])", # Sigma clipping?
-        # Complex line because if we only have one finite teff measurement, 
-        # we should just take that value.
-        "e_TEFF": "np.nanstd(rows['TEFF']) if np.isfinite(rows['TEFF']).sum() > 1 else rows['E_TEFF'][np.isfinite(rows['E_TEFF'])]",
-    })
 
 raise a
-
-
-# Update the WG results based on some rules.
-iDR4.update_wg_results(Rules)
-
-# Combine the updated WG results based on some rules.
-iDR4.combine_wg_results(Rules)
-
-
-
