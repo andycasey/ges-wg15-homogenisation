@@ -21,6 +21,7 @@ import pandas as pd
 
 # Module-specific
 from .base import DuplicateStarRule
+from .modify import UpdateColumnsRule
 
 # Create a logger.
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 class UpdateDuplicateRowsRule(DuplicateStarRule):
 
-    def __init__(self, apply_to, columns, group_by=None):
+    def __init__(self, apply_to, columns, group_by=None, group_filter=None):
         """
         Find repeated measurements of the same star (groups) and update the
         columns in each group set.
@@ -56,6 +57,15 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
 
         :type group_by:
             list
+
+        :param group_filter: [optional]
+            A filter to use on each group. If it is given, then the rule will
+            only be applied to groups where the filter evaluates to True for at
+            least one star in the group. The callable should take a single value
+            which is the table containing all rows for a given group.
+
+        :type group_filter:
+            callable
         """
 
         self.apply_to = self._parse_apply_to(apply_to)
@@ -69,6 +79,11 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
         if not isinstance(self.group_by, (tuple, list)):
             self.group_by = self.group_by
 
+        self.group_filter = group_filter
+        if self.group_filter is not None \
+        and not hasattr(self.group_filter, "__call__"):
+            raise TypeError("group filter must be a callable")
+
         prohibited_columns = ["CNAME"] + self.group_by
         for column in prohibited_columns:
             if column in map(str.upper, self.columns.keys()):
@@ -80,6 +95,7 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
             "columns": self.columns,
             "apply_to": self.apply_to,
             "group_by": self.group_by,
+            "group_filter": self.group_filter
         }
 
     def __str__(self):
@@ -112,7 +128,7 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
                     ", ".join(data_release._wg_names), self))
             return (False, {}, {})
 
-        # Create an environment for if the filter is a string.
+        # Create an environment for if the filter or update rule is a string.
         # I know. But this is for a whitelist of people running locally.
         env = {}
         env.update(self._default_env)
@@ -138,6 +154,12 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
                     "{4}".format(len(group), self.group_by, list(key), wg,
                         data_release))
 
+                # Check the filter: Should we be applying this rule to this
+                # group?
+                if self.group_filter is not None \
+                and not self.group_filter(group):
+                    continue
+
                 # For each column, evaluate the rule.
                 update_values = {}
                 for column, evaluable in self.columns.iteritems():
@@ -146,9 +168,9 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
                         if hasattr(evaluable, "__call__"):
                             value = evaluable(rows)
                         else:
-                            env["rows"] = group
+                            env["group"] = group
                             value = eval(str(evaluable), env)
-                            del env["rows"]
+                            del env["group"]
                     except:
                         # If we did except, we should check to see if this
                         # column data type is a string. If it's a string we
@@ -170,7 +192,8 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
 
                     # Update the column on all the rows in this group.
                     logger.debug("  Updating column {0} = {1} from {0} = {2}"\
-                        .format(column, value, list(group[column])))
+                        .format(column, value,
+                            list(map(str.strip, map(str, group[column])))))
 
                     # [TODO] This may be problematic if the string dtype needs
                     # updating.
@@ -186,7 +209,8 @@ class UpdateDuplicateRowsRule(DuplicateStarRule):
 
 class DeleteDuplicateRowsRule(DuplicateStarRule):
 
-    def __init__(self, apply_to, sort_by=None, group_by=None, order="desc"):
+    def __init__(self, apply_to, columns=None, group_by=None, group_filter=None,
+        sort_by=None, order="desc"):
         """
         Find repeated measurements of the same star and delete all but one from
         each group, following some heuristic.
@@ -200,13 +224,13 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
         :type apply_to:
             str or list of str
 
-        :param sort_by: [optional]
-            Which column should be used to sort the data. All duplicates in the
-            group get removed, so `sort_by` (and `order`) indicates which of the
-            columns should be kept.
+        :param columns: [optional]
+            The data columns to update in the affected WG results. This is
+            expected to contain the names of the columns as keys, and an
+            evaluable function (or string) as values.
 
-        :type sort_by:
-            str
+        :type columns:
+            dict
 
         :param group_by: [optional]
             The data column(s) to use to identify duplicate stars. If none is
@@ -214,6 +238,23 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
 
         :type group_by:
             list
+
+        :param group_filter: [optional]
+            A filter to use on each group. If it is given, then the rule will
+            only be applied to groups where the filter evaluates to True for at
+            least one star in the group. The callable should take a single value
+            which is the table containing all rows for a given group.
+            
+        :type group_filter:
+            callable
+
+        :param sort_by: [optional]
+            Which column should be used to sort the data. All duplicates in the
+            group get removed, so `sort_by` (and `order`) indicates which of the
+            columns should be kept.
+
+        :type sort_by:
+            str
 
         :param order: [optional]
             The order in which to sort the duplicates by (using `sort_by`). Only
@@ -224,6 +265,17 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
         """
 
         self.apply_to = self._parse_apply_to(apply_to)
+
+        self.columns = {}
+        if columns is not None:
+            for column, evaluable in columns.iteritems():
+                self.columns[column.upper()] = evaluable
+
+            if not isinstance(self.columns, dict):
+                raise TypeError(
+                    "columns should be a dictionary where the column name is a"\
+                    " key, and the values are expressions for the update")
+
         if sort_by is not None:
             self.sort_by = [sort_by] if isinstance(sort_by, (str, unicode)) \
                 else sort_by
@@ -233,15 +285,23 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
         if not isinstance(self.group_by, (tuple, list)):
             self.group_by = self.group_by
 
+        self.group_filter = group_filter
+        if self.group_filter is not None \
+        and not hasattr(self.group_filter, "__call__"):
+            raise TypeError(
+                "group filter must be a callable that takes a single argument")
+
         self.order = order.lower()
         if self.order not in ("asc", "desc"):
             raise ValueError("order must be 'asc' or 'desc'")
 
         self._reproducible_repr_ = {
             "action": "delete_duplicates",
+            "columns": self.columns,
             "apply_to": self.apply_to,
             "sort_by": sort_by,
             "group_by": group_by,
+            "group_filter": group_filter,
             "order": order
         }
 
@@ -253,6 +313,10 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
             sort_str = ", sort by {0} {1}".format(_, self.order)
         else:
             sort_str = ""
+
+        if self.group_filter is not None:
+            sort_str = ", ".join([sort_str, "to groups matching {}".format(
+                self.group_filter)])
         return "<homogenisation.rule to delete duplicates in {0} data (group b"\
                 "y {1})>".format(", ".join(self.apply_to), group_str + sort_str)
 
@@ -305,15 +369,75 @@ class DeleteDuplicateRowsRule(DuplicateStarRule):
             logger.debug("There are {0} groups by {1} in {2}".format(
                 len(wg_results.groups), ", ".join(self.group_by), wg))
 
-            # Aggregate the unique rows.
-            wg_results = wg_results[wg_results.groups.indices[:-1]]
-            index = data_release._wg_names.index(wg)
-            data_release._wg_results[index].data = wg_results
+            # If there is no filter to apply to the groups, then it is easy:
+            # we just need to aggregate the unique rows.
+            if self.group_filter is None:
+                wg_results = wg_results[wg_results.groups.indices[:-1]]
+                index = data_release._wg_names.index(wg)
+                data_release._wg_results[index].data = wg_results
 
-            num_rows_after = len(wg_results)
-            logger.info("{0} duplicate rows removed in {1} by {2}".format(
-                num_rows_before - num_rows_after, wg, self))
-            rows[wg] = num_rows_before - num_rows_after
+                if self.columns:
+                    raise NotImplementedError
+
+                num_rows_after = len(wg_results)
+                logger.info("{0} duplicate rows removed in {1} by {2}".format(
+                    num_rows_before - num_rows_after, wg, self))
+                rows[wg] = num_rows_before - num_rows_after
+
+            else:
+                logger.debug("Applying filter to {0} identified groups (this "\
+                    "will take some time)...".format(len(wg_results.groups)))
+
+                N = len(wg_results.groups)
+                mask = np.ones(len(wg_results), dtype=bool)
+                affected_groups = 0
+                for i, si in enumerate(wg_results.groups.indices[:-1]):
+                    ei = wg_results.groups.indices[i + 1]
+                    if ei - si == 1: continue # Only apply to real groups, pls.
+
+                    group = wg_results[si:ei]
+                    if not self.group_filter(group):
+                        continue
+
+                    affected_groups += 1
+                    logger.debug("Applying rule to group #{0}/{1}".format(i, N))
+                    logger.debug("Keeping the following row from group #{0} "\
+                        "(CNAME / OJBECT / GES_FLD / GES_TYPE):".format(i))
+
+                    keeping_row = wg_results[si]
+                    logger.debug("    {0} / {1} / {2} / {3} / {4}".format(
+                        keeping_row["CNAME"], keeping_row["OBJECT"],
+                        keeping_row["GES_FLD"], keeping_row["GES_TYPE"],
+                        keeping_row["SETUP"]))
+
+                    if self.columns:
+                        logger.debug("Updating columns for this row...")
+                        data_release.apply_rule(UpdateColumnsRule(apply_to=[wg],
+                            columns=self.columns,
+                            filter_rows='row["FILENAME"] == "{}"'.format(
+                                keeping_row["FILENAME"])), env={"group": group})
+
+                    logger.debug("Removing CNAME / OBJECT / GES_FLD / GES_TYPE"\
+                        "/ SETUP rows:")
+                    for row in wg_results[si + 1:ei]:
+                        logger.debug("    {0} / {1} / {2} / {3} / {4}".format(
+                            row["CNAME"], row["OBJECT"], row["GES_FLD"],
+                            row["GES_TYPE"], row["SETUP"]))
+
+                    # OK, now we *will* be applying this rule to this group.
+                    # So, we need to delete the duplicate rows.
+
+                    # Since the table is ordered already, we can just exclude
+                    # indices si + 1:ei
+                    mask[si + 1:ei] = False
+
+                logger.debug("There were {} affected groups by this rule."\
+                    .format(affected_groups))
+
+                rows[wg] = (~mask).sum()
+                logger.info("{0} duplicate rows removed in {1} by {2}".format(
+                    rows[wg], wg, self))
+
             # [TODO] hard to identify exceptions here...
         
         return (True, rows, exceptions)

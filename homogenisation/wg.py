@@ -29,7 +29,7 @@ class RecommendedResults(object):
     objects are combined together to form a :class:`homogenisation.DataRelease`.
     """
 
-    def __init__(self, data, meta=None, **kwargs):
+    def __init__(self, data, meta=None, strip_strings=True, **kwargs):
         if meta is None:
             meta = {}
         self.data = data
@@ -45,6 +45,12 @@ class RecommendedResults(object):
                 "it is prohibited".format(self.wg))
         if "CNAME" not in self.data.dtype.names:
             logger.warn("No CNAME found in {} data".format(self.wg))
+
+        # Strip strings from some columns.
+        if strip_strings:
+            for name, kind in self.data.dtype.descr:
+                if kind.startswith("|S"):
+                    self.data[name] = map(str.strip, self.data[name])
 
 
     @classmethod

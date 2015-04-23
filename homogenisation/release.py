@@ -79,7 +79,7 @@ class DataRelease(object):
         return self._wg_results[self._wg_names.index(wg)]
 
 
-    def apply_rule(self, rule):
+    def apply_rule(self, rule, **kwargs):
         """
         Apply a rule to this data release.
 
@@ -93,7 +93,7 @@ class DataRelease(object):
             raise TypeError("the rule must be sub-classed from homogenisation."
                 "rules.Rule")
 
-        return rule.apply(self)
+        return rule.apply(self, **kwargs)
 
 
     def combine(self, **kwargs):
@@ -123,7 +123,7 @@ class DataRelease(object):
         working_groups = map(str.upper, working_groups)
         
         env = {}
-        env.update(rules.base.Rule._default_env)
+        env.update(rules.Rule._default_env)
         env.update(kwargs.pop("env", {}))
 
         selected_rows = []        
